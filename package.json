@@ -1,0 +1,35 @@
+{
+  "name": "shotkit",
+  "version": "0.1.0",
+  "private": false,
+  "license": "MIT",
+  "description": "Frame screenshots for social — clean windows, gradients, text, exact export sizes. Runs entirely in the browser.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/unfoldingdimensions/Shot-kit.git"
+  },
+  "homepage": "https://github.com/unfoldingdimensions/Shot-kit#readme",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "check": "node --experimental-strip-types --import ./lib/ts-resolve.mjs lib/check.ts"
+  },
+  "dependencies": {
+    "konva": "^9.3.20",
+    "lucide-react": "^0.469.0",
+    "next": "^15.5.23",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-konva": "^19.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.10.7",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.3"
+  }
+}
