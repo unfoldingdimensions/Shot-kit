@@ -1,4 +1,12 @@
-export type AnnoKind = 'pointer' | 'arrow' | 'badge' | 'box' | 'ellipse' | 'spotlight'
+export type AnnoKind = 'pointer' | 'arrow' | 'badge' | 'box' | 'ellipse' | 'spotlight' | 'redact'
+
+export type RedactMode = 'pixelate' | 'blur' | 'solid'
+
+export const REDACT_MODES: { id: RedactMode; label: string }[] = [
+  { id: 'pixelate', label: 'Pixelate' },
+  { id: 'blur', label: 'Blur' },
+  { id: 'solid', label: 'Solid' },
+]
 
 /**
  * All geometry is stored as a fraction of the canvas, exactly like frame
@@ -8,6 +16,10 @@ export type AnnoKind = 'pointer' | 'arrow' | 'badge' | 'box' | 'ellipse' | 'spot
 export interface Anno {
   id: string
   kind: AnnoKind
+  /**
+   * For `redact` these are fractions of the SCREENSHOT, not the canvas — see
+   * FRAME_SPACE. Everything else is canvas-relative.
+   */
   x: number
   y: number
   w: number
@@ -23,6 +35,10 @@ export interface Anno {
   filled: boolean
   /** spotlight only: how dark everything outside the hole goes */
   dim: number
+  /** redact only */
+  redactMode: RedactMode
+  /** redact only: pixel block count, or blur strength */
+  intensity: number
 }
 
 export const ANNO_KINDS: { id: AnnoKind; label: string }[] = [
@@ -32,10 +48,21 @@ export const ANNO_KINDS: { id: AnnoKind; label: string }[] = [
   { id: 'box', label: 'Box' },
   { id: 'ellipse', label: 'Ellipse' },
   { id: 'spotlight', label: 'Spotlight' },
+  { id: 'redact', label: 'Redact' },
 ]
 
 /** Kinds the Transformer can resize; the rest are moved and sized by slider. */
-export const BOXY: AnnoKind[] = ['box', 'ellipse', 'spotlight']
+export const BOXY: AnnoKind[] = ['box', 'ellipse', 'spotlight', 'redact']
+
+/**
+ * Kinds that live inside the window frame rather than on the canvas. They are
+ * drawn as children of the frame group, so they inherit its rotation and skew,
+ * and their coordinates map straight onto source-image pixels — which is what
+ * makes a real pixelate possible instead of a grey box.
+ */
+export const FRAME_SPACE: AnnoKind[] = ['redact']
+
+export const inFrameSpace = (k: AnnoKind) => FRAME_SPACE.includes(k)
 
 export const clamp01 = (n: number) => (n < 0 ? 0 : n > 1 ? 1 : n)
 
@@ -65,6 +92,8 @@ export function createAnno(kind: AnnoKind, id: string, annos: Anno[] = []): Anno
     label: '',
     filled: false,
     dim: 0.55,
+    redactMode: 'pixelate',
+    intensity: 14,
   }
   switch (kind) {
     case 'pointer':
@@ -79,6 +108,9 @@ export function createAnno(kind: AnnoKind, id: string, annos: Anno[] = []): Anno
       return { ...base, size: 0.005 }
     case 'spotlight':
       return { ...base, x: 0.32, y: 0.28, w: 0.36, h: 0.4, dim: 0.55 }
+    case 'redact':
+      // image-relative: a wide, short strip is what an email or API key looks like
+      return { ...base, x: 0.28, y: 0.42, w: 0.34, h: 0.09, redactMode: 'pixelate', intensity: 14 }
     default:
       return base
   }

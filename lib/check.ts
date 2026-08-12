@@ -13,7 +13,17 @@ import { dominantColors, gradientFromColors, luminance, mix, toHex, fromHex } fr
 import { konvaStops, GRADIENTS } from './gradients'
 import { reducer, initialState, initialHistory, clampDim, type History } from './state'
 import { CHROME_BAR_RATIO } from './chrome'
-import { ANNO_KINDS, BOXY, clampAnno, createAnno, nextBadgeLabel, POINTER_PATH } from './annotations'
+import {
+  ANNO_KINDS,
+  BOXY,
+  FRAME_SPACE,
+  clampAnno,
+  createAnno,
+  inFrameSpace,
+  nextBadgeLabel,
+  POINTER_PATH,
+} from './annotations'
+import { averageBlocks, blockDims } from './raster'
 
 const near = (a: number, b: number, eps = 0.01) =>
   assert.ok(Math.abs(a - b) < eps, `expected ${a} ≈ ${b}`)
@@ -373,6 +383,56 @@ assert.equal(clampDim(1234.6), 1235)
   r = reducer(r, { type: 'reset' })
   assert.equal(r.present.annos.length, 0)
   assert.equal(r.present.image.src, 'blob:x')
+}
+
+// --- redaction -------------------------------------------------------------
+{
+  const r = createAnno('redact', 'r1')
+  assert.equal(r.redactMode, 'pixelate', 'defaults to the strongest option')
+  assert.ok(r.intensity >= 3, 'enough blocks to actually obscure text')
+  assert.ok(inFrameSpace('redact'), 'redaction is image-relative, not canvas-relative')
+  assert.ok(!inFrameSpace('box') && !inFrameSpace('pointer'))
+  assert.ok(BOXY.includes('redact'), 'redaction is resizable')
+  // exactly one kind lives in frame space; the stage splits on this
+  assert.deepEqual(FRAME_SPACE, ['redact'])
+}
+{
+  // blocks must stay square-ish, so a wide strip gets few rows and many columns
+  const wide = blockDims({ x: 0, y: 0, w: 0.5, h: 0.05 }, 1600, 900, 20)
+  assert.equal(wide.cols, 20)
+  // 0.5*1600 = 800 wide, 0.05*900 = 45 tall -> 20 * 45/800 ≈ 1.1 -> 1 row
+  assert.equal(wide.rows, 1)
+
+  const tall = blockDims({ x: 0, y: 0, w: 0.1, h: 0.6 }, 1000, 1000, 10)
+  assert.equal(tall.cols, 10)
+  assert.equal(tall.rows, 60)
+
+  // degenerate regions must still produce a drawable grid, never 0 rows
+  for (const region of [
+    { x: 0, y: 0, w: 0, h: 0 },
+    { x: 0, y: 0, w: 0.0001, h: 0.5 },
+    { x: 0, y: 0, w: 0.5, h: 0.0001 },
+  ]) {
+    const d = blockDims(region, 1200, 800, 12)
+    assert.ok(d.cols >= 1 && d.rows >= 1, `region ${JSON.stringify(region)} -> ${JSON.stringify(d)}`)
+  }
+  assert.equal(blockDims({ x: 0, y: 0, w: 0.5, h: 0.5 }, 900, 900, 0).cols, 1, 'cols never drops below 1')
+}
+{
+  // row-major block colours, one hex per block
+  const px = new Uint8ClampedArray([
+    255, 0, 0, 255, 0, 255, 0, 255,
+    0, 0, 255, 255, 255, 255, 255, 255,
+  ])
+  assert.deepEqual(averageBlocks(px, 2, 2), ['#ff0000', '#00ff00', '#0000ff', '#ffffff'])
+  assert.equal(averageBlocks(px, 2, 2).length, 4)
+}
+{
+  // a redaction is clamped in image space and cannot be resized away to nothing
+  const tiny = clampAnno({ ...createAnno('redact', 'r'), w: 0, h: 0 })
+  assert.ok(tiny.w >= 0.02 && tiny.h >= 0.02)
+  const off = clampAnno({ ...createAnno('redact', 'r'), x: 4, y: -3, w: 0.3, h: 0.1 })
+  assert.ok(off.x <= 1 - 0.3 / 2 + 1e-9 && off.y >= -0.1 / 2 - 1e-9)
 }
 
 console.log('ok — all checks passed')

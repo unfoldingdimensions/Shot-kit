@@ -1,8 +1,24 @@
 'use client'
-import { MousePointer2, MoveUpRight, Square, Circle as CircleIcon, Sun, Hash, Trash2 } from 'lucide-react'
-import { ANNO_KINDS, BOXY, createAnno, type Anno, type AnnoKind } from '@/lib/annotations'
+import {
+  MousePointer2,
+  MoveUpRight,
+  Square,
+  Circle as CircleIcon,
+  Sun,
+  Hash,
+  EyeOff,
+  Trash2,
+} from 'lucide-react'
+import {
+  ANNO_KINDS,
+  BOXY,
+  REDACT_MODES,
+  createAnno,
+  type Anno,
+  type AnnoKind,
+} from '@/lib/annotations'
 import type { Action, State } from '@/lib/state'
-import { Card, ColorField, Row, SectionTitle, Slider, TextField, Toggle } from '../ui'
+import { Card, ColorField, Row, SectionTitle, Segments, Slider, TextField, Toggle } from '../ui'
 
 const ICONS: Record<AnnoKind, typeof MousePointer2> = {
   pointer: MousePointer2,
@@ -11,6 +27,7 @@ const ICONS: Record<AnnoKind, typeof MousePointer2> = {
   box: Square,
   ellipse: CircleIcon,
   spotlight: Sun,
+  redact: EyeOff,
 }
 
 const pct = (n: number) => `${Math.round(n * 100)}%`
@@ -141,7 +158,34 @@ export function AnnotatePanel({
             </Row>
           )}
 
-          {sel.kind !== 'spotlight' && (
+          {sel.kind === 'redact' && (
+            <>
+              <Segments
+                className="mb-3"
+                value={sel.redactMode}
+                options={REDACT_MODES.map((m) => ({ id: m.id, label: m.label }))}
+                onChange={(redactMode) => set({ redactMode })}
+              />
+              {sel.redactMode !== 'solid' && (
+                <Slider
+                  label={sel.redactMode === 'pixelate' ? 'Blocks' : 'Strength'}
+                  min={sel.redactMode === 'pixelate' ? 3 : 3}
+                  max={sel.redactMode === 'pixelate' ? 40 : 30}
+                  step={1}
+                  value={sel.intensity}
+                  format={(n) => (sel.redactMode === 'pixelate' ? `${Math.round(n)}` : `${Math.round((n / 30) * 100)}%`)}
+                  onChange={(intensity) => set({ intensity })}
+                />
+              )}
+              {!state.image.src && (
+                <p className="mb-3 rounded-ctl bg-lime/25 px-3 py-2 text-[11px] leading-relaxed text-ink">
+                  Drop a screenshot first — pixelate and blur sample the image itself.
+                </p>
+              )}
+            </>
+          )}
+
+          {sel.kind !== 'spotlight' && (sel.kind !== 'redact' || sel.redactMode === 'solid') && (
             <ColorField label="Colour" value={sel.color} onChange={(color) => set({ color })} />
           )}
 
@@ -155,7 +199,7 @@ export function AnnotatePanel({
               format={pct}
               onChange={(dim) => set({ dim })}
             />
-          ) : (
+          ) : sel.kind === 'redact' ? null : (
             <Slider
               label={sel.kind === 'pointer' || sel.kind === 'badge' ? 'Size' : 'Thickness'}
               min={sel.kind === 'pointer' || sel.kind === 'badge' ? 0.015 : 0.002}
@@ -171,7 +215,7 @@ export function AnnotatePanel({
             <Toggle label="Filled" checked={sel.filled} onChange={(filled) => set({ filled })} />
           )}
 
-          {BOXY.includes(sel.kind) && (
+          {BOXY.includes(sel.kind) && sel.kind !== 'redact' && (
             <Slider
               label="Rotate"
               min={-180}
@@ -184,11 +228,13 @@ export function AnnotatePanel({
           )}
 
           <p className="mt-1 text-[11px] leading-relaxed text-muted">
-            {sel.kind === 'arrow'
-              ? 'Drag the arrow to move it, or drag either end point to re-aim it.'
-              : BOXY.includes(sel.kind)
-                ? 'Drag on the canvas to move, or use the handles to resize and rotate.'
-                : 'Drag it straight onto the canvas where you want it.'}
+            {sel.kind === 'redact'
+              ? 'Sits on the screenshot itself, so it moves and rotates with the window. Pixelate samples the real pixels and redraws them as blocks — it cannot be undone from the exported image.'
+              : sel.kind === 'arrow'
+                ? 'Drag the arrow to move it, or drag either end point to re-aim it.'
+                : BOXY.includes(sel.kind)
+                  ? 'Drag on the canvas to move, or use the handles to resize and rotate.'
+                  : 'Drag it straight onto the canvas where you want it.'}
           </p>
         </Card>
       ) : (

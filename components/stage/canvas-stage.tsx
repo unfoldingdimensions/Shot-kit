@@ -15,7 +15,7 @@ import { clampExportScale, exportPixels } from '@/lib/export'
 import { ensureFontsLoaded, fontById } from '@/lib/fonts'
 import { fitToViewport, layout, type SlotPos } from '@/lib/geometry'
 import { measureTextBlock, SUB_SIZE_RATIO, type TextBlockMetrics } from '@/lib/measure'
-import type { Anno } from '@/lib/annotations'
+import { inFrameSpace, type Anno } from '@/lib/annotations'
 import type { State } from '@/lib/state'
 import { Annotations, NO_EXPORT } from './annotations'
 import { Background } from './background'
@@ -98,6 +98,11 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
   const fit = fitToViewport(width, height, Math.max(avail.w - 8, 1), Math.max(avail.h - 8, 1))
 
   const uiFont = fontById('inter').family
+
+  // two coordinate spaces: redactions are image-relative and live inside the
+  // frame group, everything else is canvas-relative in its own layer
+  const frameAnnos = state.annos.filter((a) => inFrameSpace(a.kind))
+  const canvasAnnos = state.annos.filter((a) => !inFrameSpace(a.kind))
 
   const computed = useMemo(() => {
     const pad = frame.padding * minDim
@@ -220,7 +225,7 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
             <Layer listening={false}>
               <Background bg={state.bg} w={width} h={height} />
             </Layer>
-            <Layer listening={false}>
+            <Layer>
               <Frame
                 box={computed.frame}
                 barH={computed.barH}
@@ -228,6 +233,10 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
                 img={img}
                 fontFamily={uiFont}
                 minDim={minDim}
+                redactions={frameAnnos}
+                selected={selected}
+                onSelect={onSelect}
+                onCommit={onAnnoCommit}
               />
             </Layer>
             <Layer listening={false}>
@@ -246,7 +255,7 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
             </Layer>
             <Layer>
               <Annotations
-                annos={state.annos}
+                annos={canvasAnnos}
                 w={width}
                 h={height}
                 minDim={minDim}

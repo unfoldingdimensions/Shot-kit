@@ -1,9 +1,11 @@
 'use client'
 import { Group, Image as KImage, Rect } from 'react-konva'
+import type { Anno } from '@/lib/annotations'
 import { CHROME_PALETTE } from '@/lib/chrome'
 import type { Box } from '@/lib/geometry'
 import type { State } from '@/lib/state'
 import { Chrome } from './chrome'
+import { Redactions } from './redactions'
 
 /** Rounded-rect path with per-corner radii, for the image clip. */
 function roundRect(
@@ -32,6 +34,10 @@ export function Frame({
   img,
   fontFamily,
   minDim,
+  redactions,
+  selected,
+  onSelect,
+  onCommit,
 }: {
   box: Box
   barH: number
@@ -39,6 +45,10 @@ export function Frame({
   img: HTMLImageElement | null
   fontFamily: string
   minDim: number
+  redactions: Anno[]
+  selected: string | null
+  onSelect: (id: string | null) => void
+  onCommit: (id: string, patch: Partial<Anno>) => void
 }) {
   if (box.w <= 0 || box.h <= 0) return null
 
@@ -58,8 +68,12 @@ export function Frame({
       offsetY={box.h / 2}
       rotation={frame.rotation}
       skewX={frame.skewX}
-      listening={false}
     >
+      {/* Everything except redactions is click-through, so a click on the
+          screenshot still reaches the stage and clears the selection. A
+          listening={false} parent would disable its children too, which is why
+          the frame splits into an inert group and an interactive one. */}
+      <Group listening={false}>
       {/* base plate: carries the shadow and backs any transparent PNG */}
       <Rect
         width={box.w}
@@ -113,6 +127,25 @@ export function Frame({
             strokeWidth={Math.max(box.w * 0.0012, 0.75)}
           />
         </>
+      )}
+      </Group>
+
+      {/* interactive, and positioned over the screenshot so its coordinates are
+          image-relative. Deliberately not clipped: clipping here would also cut
+          off the resize handles sitting on the region's edge. */}
+      {imgH > 0 && (
+        <Group y={imgY}>
+          <Redactions
+            items={redactions}
+            img={img}
+            imgW={box.w}
+            imgH={imgH}
+            minDim={minDim}
+            selected={selected}
+            onSelect={onSelect}
+            onCommit={onCommit}
+          />
+        </Group>
       )}
     </Group>
   )
