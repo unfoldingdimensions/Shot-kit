@@ -104,14 +104,6 @@ npm run check
 Runs the logic self-check — export-scale clamping, layout geometry, colour extraction, the state
 reducer. No test framework; it's a plain Node script full of asserts.
 
-## Deploy
-
-Static output, no environment variables, no server. Click the Deploy button above, or:
-
-```bash
-npx vercel
-```
-
 ## Tech stack
 
 Next.js 15 (App Router, entirely client-side) · React 19 · Tailwind CSS v4 · Konva via react-konva ·
