@@ -4,7 +4,6 @@
 
 **Drop a screenshot, wrap it in a clean window and a gradient, add text, export at the exact size Twitter, Instagram or Pinterest wants.**
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/unfoldingdimensions/Shot-kit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 
 </div>
@@ -160,32 +159,6 @@ lib/
   check.ts           the self-check
 ```
 
-## Known limits
-
-- **No 3D perspective tilt.** Konva does rotate, scale and skew, but not perspective transforms, so
-  the dramatic "card floating in 3D space" look isn't reachable. Rotation and skew cover flat-lay
-  and slight-tilt. A WebGL frame layer would be needed for the rest.
-- **Text is edited in the sidebar**, not by clicking it on the canvas.
-- **Bold and italic apply per text block**, not to a single word mid-sentence.
-- **Background blur needs Canvas2D filters** (Safari 17+). Without them it falls back to a
-  step-by-step downscale, which is coarser at high strength.
-- **Private-browsing modes that block IndexedDB** will still restore styling but not the screenshot.
-
-## Roadmap
-
-Ranked roughly by payoff:
-
-1. Batch export every selected preset in one click
-2. Named templates so a brand look is one click next time
-3. Watermark / logo upload
-4. Multi-image layouts — side by side, before/after, cascaded
-5. Shareable URL state (compressed into the hash, still no server)
-6. Syntax highlighting for the code-file window
-7. Double-click to edit text on the canvas
-8. WebGL 3D perspective tilt
-
-Not planned: accounts, cloud storage, team libraries, AI features, video capture. Each needs a
-backend and turns a tool into a product.
 
 ## Contributing
 
