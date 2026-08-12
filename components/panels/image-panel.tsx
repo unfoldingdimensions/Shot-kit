@@ -1,8 +1,8 @@
 'use client'
-import { ImageUp, RotateCcw, Trash2 } from 'lucide-react'
+import { ImageUp, Trash2 } from 'lucide-react'
 import { PRESETS, fitToImage, presetGroups } from '@/lib/presets'
 import type { Action, State } from '@/lib/state'
-import { Card, Row, SectionTitle, Select, TextField } from '../ui'
+import { Card, ResetButton, Row, SectionTitle, Select, TextField } from '../ui'
 
 export function ImagePanel({
   state,
@@ -66,14 +66,10 @@ export function ImagePanel({
       <Card>
         <SectionTitle
           right={
-            <button
-              type="button"
-              onClick={() => dispatch({ type: 'reset' })}
-              title="Reset all styling"
-              className="rounded-full p-1.5 text-muted hover:bg-paper hover:text-ink"
-            >
-              <RotateCcw size={14} />
-            </button>
+            <ResetButton
+              label="Reset output size"
+              onClick={() => dispatch({ type: 'resetSection', section: 'size' })}
+            />
           }
         >
           Output size

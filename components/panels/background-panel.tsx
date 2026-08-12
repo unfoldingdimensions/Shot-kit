@@ -2,7 +2,7 @@
 import { Wand2 } from 'lucide-react'
 import { GRADIENTS, gradientCss } from '@/lib/gradients'
 import type { Action, BgMode, State } from '@/lib/state'
-import { Card, ColorField, Row, SectionTitle, Segments, Slider } from '../ui'
+import { Card, ColorField, ResetButton, Row, SectionTitle, Segments, Slider } from '../ui'
 
 const MODES: { id: BgMode; label: string }[] = [
   { id: 'gradient', label: 'Gradient' },
@@ -30,7 +30,16 @@ export function BackgroundPanel({
   return (
     <>
       <Card>
-        <SectionTitle>Background</SectionTitle>
+        <SectionTitle
+          right={
+            <ResetButton
+              label="Reset background"
+              onClick={() => dispatch({ type: 'resetSection', section: 'bg' })}
+            />
+          }
+        >
+          Background
+        </SectionTitle>
         <Segments value={bg.mode} options={MODES} onChange={(mode) => set({ mode })} />
       </Card>
 

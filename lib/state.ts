@@ -148,6 +148,9 @@ export type Action =
   | { type: 'annoCommit'; id: string; patch: Partial<Anno> }
   | { type: 'annoRemove'; id: string }
   | { type: 'annoClear' }
+  /** restore one panel's settings to defaults, leaving the rest alone */
+  | { type: 'resetSection'; section: 'bg' | 'frame' | 'text' | 'out' | 'size' }
+  /** everything back to defaults; keeps the screenshot itself */
   | { type: 'reset' }
   | { type: 'load'; state: State }
   | { type: 'undo' }
@@ -253,6 +256,26 @@ function apply(s: State, a: Action): State {
     }
     case 'annoClear':
       return s.annos.length ? { ...s, annos: [] } : s
+    case 'resetSection':
+      switch (a.section) {
+        case 'bg':
+          return { ...s, bg: { ...initialState.bg } }
+        case 'frame':
+          return { ...s, frame: { ...initialState.frame } }
+        case 'text':
+          return { ...s, text: structuredClone(initialState.text) }
+        case 'out':
+          return { ...s, out: { ...initialState.out } }
+        case 'size':
+          return {
+            ...s,
+            presetId: initialState.presetId,
+            width: initialState.width,
+            height: initialState.height,
+          }
+      }
+    // falls through to `reset` only if a new section is added without a case
+    // eslint-disable-next-line no-fallthrough
     case 'reset':
       return { ...initialState, image: s.image }
     default:

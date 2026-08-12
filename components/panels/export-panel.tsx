@@ -3,7 +3,7 @@ import { Check, Clipboard, Download } from 'lucide-react'
 import { useState } from 'react'
 import { clampExportScale, exportPixels } from '@/lib/export'
 import type { Action, State } from '@/lib/state'
-import { Card, SectionTitle, Segments, Slider } from '../ui'
+import { Card, ResetButton, SectionTitle, Segments, Slider } from '../ui'
 
 export function ExportPanel({
   state,
@@ -28,7 +28,16 @@ export function ExportPanel({
   return (
     <>
       <Card>
-        <SectionTitle>Export</SectionTitle>
+        <SectionTitle
+          right={
+            <ResetButton
+              label="Reset export settings"
+              onClick={() => dispatch({ type: 'resetSection', section: 'out' })}
+            />
+          }
+        >
+          Export
+        </SectionTitle>
 
         <div className="mb-4">
           <div className="flex items-baseline gap-1.5">

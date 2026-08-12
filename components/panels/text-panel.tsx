@@ -4,7 +4,18 @@ import { useState } from 'react'
 import { FONTS } from '@/lib/fonts'
 import type { SlotPos } from '@/lib/geometry'
 import type { Action, State, TextSlot } from '@/lib/state'
-import { Card, ColorField, Row, SectionTitle, Segments, Select, Slider, TextField, Toggle } from '../ui'
+import {
+  Card,
+  ColorField,
+  ResetButton,
+  Row,
+  SectionTitle,
+  Segments,
+  Select,
+  Slider,
+  TextField,
+  Toggle,
+} from '../ui'
 
 const POSITIONS: { id: SlotPos; label: string }[] = [
   { id: 'top', label: 'Top' },
@@ -25,7 +36,16 @@ export function TextPanel({ state, dispatch }: { state: State; dispatch: (a: Act
   return (
     <>
       <Card>
-        <SectionTitle>Text</SectionTitle>
+        <SectionTitle
+          right={
+            <ResetButton
+              label="Reset all four text slots"
+              onClick={() => dispatch({ type: 'resetSection', section: 'text' })}
+            />
+          }
+        >
+          Text
+        </SectionTitle>
         <div className="grid grid-cols-4 gap-1 rounded-ctl bg-paper p-1">
           {POSITIONS.map((p) => {
             const s = state.text[p.id]
@@ -156,7 +176,9 @@ export function TextPanel({ state, dispatch }: { state: State; dispatch: (a: Act
           max={0.16}
           step={0.002}
           value={slot.tracking}
-          format={(n) => `${n > 0 ? '+' : ''}${(n * 100).toFixed(1)}`}
+          // percent of font size — the bare number read as pixels next to
+          // "49px" and "1.12" on the neighbouring sliders
+          format={(n) => `${n > 0 ? '+' : ''}${(n * 100).toFixed(1)}%`}
           onChange={(tracking) => set({ tracking })}
         />
         <Slider

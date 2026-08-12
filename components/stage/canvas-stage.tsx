@@ -1,5 +1,6 @@
 'use client'
 import Konva from 'konva'
+import { Maximize2, Minus, Plus } from 'lucide-react'
 import {
   forwardRef,
   useEffect,
@@ -55,6 +56,7 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
   const stageRef = useRef<Konva.Stage>(null)
   const [avail, setAvail] = useState({ w: 0, h: 0 })
   const [fontsReady, setFontsReady] = useState(false)
+  const [zoom, setZoom] = useState(1)
   const img = useImage(state.image.src)
 
   useEffect(() => {
@@ -95,7 +97,12 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
 
   const { width, height, frame, text } = state
   const minDim = Math.min(width, height)
-  const fit = fitToViewport(width, height, Math.max(avail.w - 8, 1), Math.max(avail.h - 8, 1))
+
+  // zoom multiplies the fit-to-viewport scale. It is view-only: export resets
+  // the stage to 1:1, so zooming can never change the exported bitmap.
+  const baseFit = fitToViewport(width, height, Math.max(avail.w - 8, 1), Math.max(avail.h - 8, 1))
+  const fit = baseFit * zoom
+  const atDefault = zoom === 1
 
   const uiFont = fontById('inter').family
 
@@ -191,11 +198,26 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
   const stageW = Math.max(Math.round(width * fit), 1)
   const stageH = Math.max(Math.round(height * fit), 1)
 
+  const zoomBy = (f: number) => setZoom((z) => Math.min(Math.max(z * f, 0.2), 6))
+
   return (
-    <div ref={wrapRef} className="grid h-full w-full place-items-center overflow-hidden">
-      {avail.w > 0 && (
+    <div className="relative h-full w-full">
+      <div
+        ref={wrapRef}
+        className="scroll-thin flex h-full w-full overflow-auto"
+        onWheel={(e) => {
+          // pinch-zoom on a trackpad arrives as ctrlKey+wheel
+          if (!e.ctrlKey && !e.metaKey) return
+          e.preventDefault()
+          zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12)
+        }}
+      >
+        {avail.w > 0 && (
         <div
-          className="shadow-[0_24px_70px_-20px_rgba(0,0,0,0.55)]"
+          // m-auto centres in both axes AND stays reachable when the stage is
+          // larger than the viewport; justify/align-center would clip the
+          // top-left and make it impossible to scroll to
+          className="m-auto shrink-0 shadow-[0_24px_70px_-20px_rgba(0,0,0,0.55)]"
           style={{
             width: stageW,
             height: stageH,
@@ -233,6 +255,7 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
                 img={img}
                 fontFamily={uiFont}
                 minDim={minDim}
+                fit={fit}
                 redactions={frameAnnos}
                 selected={selected}
                 onSelect={onSelect}
@@ -259,6 +282,7 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
                 w={width}
                 h={height}
                 minDim={minDim}
+                fit={fit}
                 fontFamily={uiFont}
                 selected={selected}
                 onSelect={onSelect}
@@ -267,6 +291,44 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
               />
             </Layer>
           </Stage>
+        </div>
+        )}
+      </div>
+
+      {avail.w > 0 && (
+        <div className="pointer-events-auto absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full bg-ink/90 p-1 text-white backdrop-blur-sm">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => zoomBy(1 / 1.25)}
+            className="grid size-7 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <Minus size={14} />
+          </button>
+          <span
+            className="font-display min-w-12 text-center text-[12px] font-semibold tabular-nums"
+            title="Size on screen relative to the exported image"
+          >
+            {Math.round(baseFit * zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => zoomBy(1.25)}
+            className="grid size-7 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+          >
+            <Plus size={14} />
+          </button>
+          <button
+            type="button"
+            aria-label="Reset zoom to fit"
+            title="Fit to window"
+            disabled={atDefault}
+            onClick={() => setZoom(1)}
+            className="ml-0.5 grid size-7 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:hover:bg-transparent"
+          >
+            <Maximize2 size={13} />
+          </button>
         </div>
       )}
     </div>

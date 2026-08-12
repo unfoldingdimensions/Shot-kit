@@ -129,6 +129,25 @@ export function clampAnno(a: Anno): Anno {
   return { ...a, x: clamp01(a.x), y: clamp01(a.y) }
 }
 
+/** On-screen size of a resize handle, in CSS pixels. */
+export const ANCHOR_SCREEN_PX = 8
+
+/**
+ * Resize-handle size in canvas units.
+ *
+ * Handles are a constant size *on screen*, not in canvas units. A redaction is
+ * usually a thin strip over one line of text; sizing handles in canvas units
+ * made them balloon as the canvas grew and swamp the very thing you are
+ * checking is hidden. Constant-on-screen also means zooming in makes the
+ * handles occupy proportionally less of the region, so zoom is a real remedy.
+ * Capped at half the region so a tiny box is never buried under its own grips.
+ */
+export function anchorFor(a: Anno, imgW: number, imgH: number, stageScale: number) {
+  const shortest = Math.min(a.w * imgW, a.h * imgH)
+  const constantOnScreen = ANCHOR_SCREEN_PX / Math.max(stageScale, 0.05)
+  return Math.min(constantOnScreen, Math.max(shortest * 0.5, 1))
+}
+
 /**
  * Cursor glyph in unit space, tip at (0,0). Drawn as a closed polygon so it
  * scales cleanly and needs no bitmap.

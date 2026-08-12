@@ -2,7 +2,7 @@
 import type Konva from 'konva'
 import { useEffect, useRef } from 'react'
 import { Arrow, Circle, Ellipse, Group, Line, Rect, Shape, Text, Transformer } from 'react-konva'
-import { BOXY, POINTER_PATH, type Anno } from '@/lib/annotations'
+import { ANCHOR_SCREEN_PX, BOXY, POINTER_PATH, type Anno } from '@/lib/annotations'
 
 /**
  * Selection outlines and drag handles carry this name so `exportImage` can hide
@@ -16,6 +16,8 @@ interface Props {
   w: number
   h: number
   minDim: number
+  /** stage scale, so handles stay a constant size on screen */
+  fit: number
   fontFamily: string
   selected: string | null
   onSelect: (id: string | null) => void
@@ -141,6 +143,7 @@ export function Annotations({
   w,
   h,
   minDim,
+  fit,
   fontFamily,
   selected,
   onSelect,
@@ -305,12 +308,13 @@ export function Annotations({
           rotateEnabled
           keepRatio={false}
           ignoreStroke
-          anchorSize={Math.max(minDim * 0.018, 8)}
+          anchorSize={ANCHOR_SCREEN_PX / Math.max(fit, 0.05)}
           anchorStroke="#b3a4f5"
           anchorFill="#ffffff"
-          anchorCornerRadius={3}
+          anchorStrokeWidth={1 / Math.max(fit, 0.05)}
+          anchorCornerRadius={2}
           borderStroke="#b3a4f5"
-          borderStrokeWidth={outline}
+          borderStrokeWidth={1.5 / Math.max(fit, 0.05)}
           boundBoxFunc={(oldBox, newBox) =>
             newBox.width < minDim * 0.03 || newBox.height < minDim * 0.03 ? oldBox : newBox
           }

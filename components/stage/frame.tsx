@@ -34,6 +34,7 @@ export function Frame({
   img,
   fontFamily,
   minDim,
+  fit,
   redactions,
   selected,
   onSelect,
@@ -45,6 +46,7 @@ export function Frame({
   img: HTMLImageElement | null
   fontFamily: string
   minDim: number
+  fit: number
   redactions: Anno[]
   selected: string | null
   onSelect: (id: string | null) => void
@@ -141,6 +143,7 @@ export function Frame({
             imgW={box.w}
             imgH={imgH}
             minDim={minDim}
+            fit={fit}
             selected={selected}
             onSelect={onSelect}
             onCommit={onCommit}

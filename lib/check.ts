@@ -14,9 +14,11 @@ import { konvaStops, GRADIENTS } from './gradients'
 import { reducer, initialState, initialHistory, clampDim, type History } from './state'
 import { CHROME_BAR_RATIO } from './chrome'
 import {
+  ANCHOR_SCREEN_PX,
   ANNO_KINDS,
   BOXY,
   FRAME_SPACE,
+  anchorFor,
   clampAnno,
   createAnno,
   inFrameSpace,
@@ -428,11 +430,100 @@ assert.equal(clampDim(1234.6), 1235)
   assert.equal(averageBlocks(px, 2, 2).length, 4)
 }
 {
+  // Handles are a constant size ON SCREEN. Sized in canvas units they ballooned
+  // with the canvas and swamped a one-line redaction strip.
+  const imgW = 1200
+  const imgH = 800
+  const strip = { ...createAnno('redact', 'r'), w: 0.34, h: 0.06 }
+
+  // where the region is roomy, the handle is exactly ANCHOR_SCREEN_PX on screen
+  // whatever the stage scale
+  const roomy = { ...createAnno('redact', 'r'), w: 0.6, h: 0.5 }
+  for (const scale of [0.25, 0.5, 1, 2]) {
+    near(anchorFor(roomy, imgW, imgH, scale) * scale, ANCHOR_SCREEN_PX)
+  }
+
+  // on a thin strip zoomed far out, the half-region cap takes over instead —
+  // better a slightly small handle than one that hides the redaction
+  const atQuarter = anchorFor(strip, imgW, imgH, 0.25)
+  assert.ok(atQuarter * 0.25 < ANCHOR_SCREEN_PX, 'cap binds on a small region')
+  near(anchorFor(strip, imgW, imgH, 0.5) * 0.5, ANCHOR_SCREEN_PX)
+
+  // zooming in must make the handle cover proportionally less of the region
+  const regionH = strip.h * imgH
+  assert.ok(
+    anchorFor(strip, imgW, imgH, 2) / regionH < anchorFor(strip, imgW, imgH, 0.25) / regionH,
+    'zoom is a real remedy for handles crowding a small region',
+  )
+
+  // a tiny region is never buried under its own grips
+  const tiny = { ...createAnno('redact', 'r'), w: 0.02, h: 0.02 }
+  const shortest = Math.min(tiny.w * imgW, tiny.h * imgH)
+  assert.ok(anchorFor(tiny, imgW, imgH, 0.25) <= shortest * 0.5 + 1e-9)
+
+  // and a degenerate scale cannot divide by zero into infinity
+  assert.ok(Number.isFinite(anchorFor(strip, imgW, imgH, 0)))
+}
+{
   // a redaction is clamped in image space and cannot be resized away to nothing
   const tiny = clampAnno({ ...createAnno('redact', 'r'), w: 0, h: 0 })
   assert.ok(tiny.w >= 0.02 && tiny.h >= 0.02)
   const off = clampAnno({ ...createAnno('redact', 'r'), x: 4, y: -3, w: 0.3, h: 0.1 })
   assert.ok(off.x <= 1 - 0.3 / 2 + 1e-9 && off.y >= -0.1 / 2 - 1e-9)
+}
+
+// --- section resets --------------------------------------------------------
+{
+  // each panel's reset must restore only its own slice
+  let h: History = initialHistory
+  h = reducer(h, { type: 'bg', patch: { mode: 'solid', grain: 0.9 } })
+  h = reducer(h, { type: 'frame', patch: { chrome: 'settings', rotation: 9 } })
+  h = reducer(h, { type: 'slot', pos: 'bottom', patch: { heading: 'keep me', on: true } })
+  h = reducer(h, { type: 'out', patch: { format: 'jpg', scale: 3 } })
+  h = reducer(h, { type: 'preset', id: 'ig-story' })
+  h = reducer(h, { type: 'annoAdd', anno: createAnno('box', 'b1') })
+
+  const afterBg = reducer(h, { type: 'resetSection', section: 'bg' })
+  assert.equal(afterBg.present.bg.mode, initialState.bg.mode)
+  assert.equal(afterBg.present.bg.grain, initialState.bg.grain)
+  assert.equal(afterBg.present.frame.chrome, 'settings', 'window untouched')
+  assert.equal(afterBg.present.text.bottom.heading, 'keep me', 'text untouched')
+  assert.equal(afterBg.present.width, 1080, 'size untouched')
+  assert.equal(afterBg.present.annos.length, 1, 'annotations untouched')
+
+  const afterFrame = reducer(h, { type: 'resetSection', section: 'frame' })
+  assert.equal(afterFrame.present.frame.chrome, initialState.frame.chrome)
+  assert.equal(afterFrame.present.frame.rotation, 0)
+  assert.equal(afterFrame.present.bg.mode, 'solid', 'background untouched')
+
+  const afterText = reducer(h, { type: 'resetSection', section: 'text' })
+  assert.equal(afterText.present.text.bottom.heading, '')
+  assert.equal(afterText.present.frame.chrome, 'settings', 'window untouched')
+  // must be a copy, or resetting once would let later edits mutate the defaults
+  assert.notEqual(afterText.present.text, initialState.text)
+  assert.notEqual(afterText.present.text.top, initialState.text.top)
+
+  const afterOut = reducer(h, { type: 'resetSection', section: 'out' })
+  assert.equal(afterOut.present.out.format, 'png')
+  assert.equal(afterOut.present.out.scale, 2)
+  assert.equal(afterOut.present.width, 1080, 'size untouched')
+
+  const afterSize = reducer(h, { type: 'resetSection', section: 'size' })
+  assert.equal(afterSize.present.width, 1600)
+  assert.equal(afterSize.present.height, 900)
+  assert.equal(afterSize.present.presetId, 'x-landscape')
+  assert.equal(afterSize.present.out.format, 'jpg', 'export untouched')
+
+  // every section reset is a single undoable step
+  assert.equal(afterBg.past.length, h.past.length + 1)
+  assert.equal(reducer(afterBg, { type: 'undo' }).present.bg.grain, 0.9)
+}
+{
+  // resetting the defaults object must never leak a shared reference
+  let a: History = initialHistory
+  a = reducer(a, { type: 'resetSection', section: 'text' })
+  a = reducer(a, { type: 'slot', pos: 'top', patch: { heading: 'mutated' } })
+  assert.equal(initialState.text.top.heading, 'Ship it looking sharp', 'defaults intact')
 }
 
 console.log('ok — all checks passed')

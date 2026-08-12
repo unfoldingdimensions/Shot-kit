@@ -71,9 +71,18 @@ stay put when you switch output size.
 **Export.** PNG or JPG with a quality slider, at 1×, 2× or 3×. Download or copy straight to the
 clipboard.
 
+**Zoom.** Zoom the canvas with the controls bottom-right, or `Ctrl`/`⌘` + scroll. Zoom is a view
+setting only — export always renders at 1:1, so the exported pixels never change. "Fit to window"
+resets it.
+
+**Resets.** Every panel has its own reset that restores just that section, plus a two-step
+**Reset all** in the header for everything at once (your screenshot is kept). Annotations have
+their own *Clear all*.
+
 **Workflow.** Drag and drop, paste from the clipboard (`Ctrl/Cmd+V`), undo/redo (`Ctrl/Cmd+Z`),
-`Ctrl/Cmd+S` to export, and your styling and annotations are remembered between visits. A whole
-drag or resize collapses into exactly one undo step.
+`Ctrl/Cmd+S` to export. Your styling, annotations **and screenshot** are all remembered between
+visits — styling in localStorage, the image in IndexedDB, because a screenshot is megabytes and
+would blow localStorage's ~5MB quota. A whole drag or resize collapses into exactly one undo step.
 
 ## Quick start
 
@@ -164,8 +173,7 @@ lib/
 - **Bold and italic apply per text block**, not to a single word mid-sentence.
 - **Background blur is a downscale**, not a gaussian, so only heavy blurs look right. Deliberate
   trade: it exports correctly at any scale, which a cached Konva filter does not.
-- **Autosave stores styling, not images.** Screenshots would blow the localStorage quota, so you
-  re-drop the image after a reload.
+- **Private-browsing modes that block IndexedDB** will still restore styling but not the screenshot.
 
 ## Roadmap
 
@@ -193,13 +201,15 @@ npm run check && npx tsc --noEmit && npm run build
 
 Keep new dependencies to a minimum.
 
-**Stop the dev server before running `npm run build`.** Both write to `.next`, so building while
-`next dev` is running replaces the chunks the dev server is serving. The symptom is the page loading
-as unstyled HTML with a 404 on `_next/static/css/app/layout.css`. Fix:
+**Building while the dev server runs** replaces the chunks it is serving — the page then loads as
+unstyled HTML with a 404 on `_next/static/css/app/layout.css`. Either stop the dev server first, or
+build somewhere else:
 
 ```bash
-rm -rf .next && npm run dev
+NEXT_DIST_DIR=.next-verify npx next build
 ```
+
+If you hit it, `rm -rf .next && npm run dev` puts things back.
 
 ## License
 

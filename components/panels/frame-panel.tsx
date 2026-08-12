@@ -1,7 +1,7 @@
 'use client'
 import { CHROME_KINDS } from '@/lib/chrome'
 import type { Action, State } from '@/lib/state'
-import { Card, Row, SectionTitle, Segments, Slider, TextField, Toggle } from '../ui'
+import { Card, ResetButton, Row, SectionTitle, Segments, Slider, TextField, Toggle } from '../ui'
 
 const pct = (n: number) => `${Math.round(n * 100)}%`
 
@@ -32,7 +32,16 @@ export function FramePanel({
   return (
     <>
       <Card>
-        <SectionTitle>Window</SectionTitle>
+        <SectionTitle
+          right={
+            <ResetButton
+              label="Reset window, shape and shadow"
+              onClick={() => dispatch({ type: 'resetSection', section: 'frame' })}
+            />
+          }
+        >
+          Window
+        </SectionTitle>
         <div className="mb-3 grid grid-cols-2 gap-2">
           {CHROME_KINDS.map((k) => (
             <button

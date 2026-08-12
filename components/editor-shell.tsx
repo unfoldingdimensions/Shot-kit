@@ -1,11 +1,13 @@
 'use client'
 import {
+  Aperture,
   Frame as FrameIcon,
   Github,
   Image as ImageIcon,
   MousePointer2,
   Palette,
   Redo2,
+  RotateCcw,
   Share2,
   Type,
   Undo2,
@@ -14,6 +16,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { copyToClipboard, download, filenameFor } from '@/lib/export'
 import { FONTS } from '@/lib/fonts'
 import { gradientFromColors, paletteFromImage } from '@/lib/colors'
+import { clearScreenshot, loadScreenshot, saveScreenshot } from '@/lib/idb'
 import { findPreset } from '@/lib/presets'
 import { initialHistory, initialState, reducer, type Action, type State } from '@/lib/state'
 import type { Anno } from '@/lib/annotations'
@@ -85,6 +88,8 @@ export function EditorShell() {
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [restored, setRestored] = useState(false)
   const stage = useRef<StageApi>(null)
   const CanvasStage = useCanvasStage()
   const fileInput = useRef<HTMLInputElement>(null)
@@ -100,17 +105,36 @@ export function EditorShell() {
     [],
   )
 
-  // --- restore / persist styling -------------------------------------------
+  // --- restore / persist ----------------------------------------------------
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORE_KEY)
-      if (raw) act({ type: 'load', state: { ...initialState, ...JSON.parse(raw) } })
-    } catch {
-      /* corrupt or unavailable storage is not worth failing over */
+    let live = true
+    ;(async () => {
+      let next: State = initialState
+      try {
+        const raw = localStorage.getItem(STORE_KEY)
+        if (raw) next = { ...initialState, ...JSON.parse(raw) }
+      } catch {
+        /* corrupt or unavailable storage is not worth failing over */
+      }
+      try {
+        const shot = await loadScreenshot()
+        if (shot?.src) next = { ...next, image: shot }
+      } catch {
+        /* private mode, or no IndexedDB */
+      }
+      // one dispatch, so restoring never lands on the undo stack
+      if (live) {
+        act({ type: 'load', state: next })
+        setRestored(true)
+      }
+    })()
+    return () => {
+      live = false
     }
   }, [act])
 
   useEffect(() => {
+    if (!restored) return
     const t = setTimeout(() => {
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(persistable(state)))
@@ -119,7 +143,19 @@ export function EditorShell() {
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [state])
+  }, [state, restored])
+
+  // the screenshot goes to IndexedDB; gated on `restored` so the empty initial
+  // state cannot wipe the stored image before it has been read back
+  useEffect(() => {
+    if (!restored) return
+    const { src, w, h, name } = state.image
+    if (!src) {
+      clearScreenshot().catch(() => {})
+      return
+    }
+    saveScreenshot({ src, w, h, name }).catch(() => {})
+  }, [state.image, restored])
 
   // --- image intake --------------------------------------------------------
   const accept = useCallback(
@@ -246,8 +282,10 @@ export function EditorShell() {
       <aside className="hidden w-52 shrink-0 flex-col justify-between md:flex">
         <div>
           <div className="mb-7 flex items-center gap-2 px-4 pt-4">
+            {/* deliberately not FrameIcon — that is the Window nav item, and a
+                logo that repeats a nav glyph reads as a sixth nav entry */}
             <span className="grid size-7 place-items-center rounded-lg bg-lime">
-              <FrameIcon size={15} className="text-ink" />
+              <Aperture size={15} className="text-ink" />
             </span>
             <span className="font-display text-[17px] font-bold tracking-tight text-white">
               shotkit
@@ -332,6 +370,27 @@ export function EditorShell() {
                 <Redo2 size={15} />
               </button>
             </div>
+            {/* two-step: one stray click should not destroy a composition */}
+            <button
+              type="button"
+              title="Reset every setting to defaults (keeps your screenshot)"
+              onClick={() => {
+                if (!confirmReset) {
+                  setConfirmReset(true)
+                  setTimeout(() => setConfirmReset(false), 3000)
+                  return
+                }
+                setConfirmReset(false)
+                setSelected(null)
+                act({ type: 'reset' })
+              }}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-3 text-[12px] font-semibold transition-colors ${
+                confirmReset ? 'bg-lime text-ink' : 'bg-white text-muted hover:text-ink'
+              }`}
+            >
+              <RotateCcw size={14} />
+              {confirmReset ? 'Confirm reset' : 'Reset all'}
+            </button>
             <button
               type="button"
               onClick={doDownload}

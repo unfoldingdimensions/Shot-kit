@@ -1,4 +1,5 @@
 'use client'
+import { RotateCcw } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 /** White rounded card — the panel unit of the whole sidebar. */
@@ -210,6 +211,27 @@ export function ColorField({
         />
       </div>
     </div>
+  )
+}
+
+/** Section-level "put this panel back how it started". */
+export function ResetButton({
+  onClick,
+  label = 'Reset to defaults',
+}: {
+  onClick: () => void
+  label?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className="rounded-full p-1.5 text-muted transition-colors hover:bg-paper hover:text-ink"
+    >
+      <RotateCcw size={14} />
+    </button>
   )
 }
 

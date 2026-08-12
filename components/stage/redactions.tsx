@@ -2,7 +2,7 @@
 import type Konva from 'konva'
 import { useEffect, useMemo, useRef } from 'react'
 import { Group, Image as KImage, Rect, Transformer } from 'react-konva'
-import type { Anno } from '@/lib/annotations'
+import { anchorFor, type Anno } from '@/lib/annotations'
 import { cropBlur, pixelateBlocks } from '@/lib/raster'
 import { NO_EXPORT } from './annotations'
 
@@ -13,6 +13,8 @@ interface Props {
   imgW: number
   imgH: number
   minDim: number
+  /** stage scale, so handles can be a constant size on screen */
+  fit: number
   selected: string | null
   onSelect: (id: string | null) => void
   onCommit: (id: string, patch: Partial<Anno>) => void
@@ -75,6 +77,7 @@ export function Redactions({
   imgW,
   imgH,
   minDim,
+  fit,
   selected,
   onSelect,
   onCommit,
@@ -130,17 +133,8 @@ export function Redactions({
             </Group>
             {/* keeps the whole rect grabbable even where blocks are transparent */}
             <Rect width={w} height={h} fill="rgba(0,0,0,0.002)" />
-            {a.id === selected && (
-              <Rect
-                name={NO_EXPORT}
-                width={w}
-                height={h}
-                stroke="#b3a4f5"
-                strokeWidth={outline}
-                dash={[minDim * 0.012, minDim * 0.009]}
-                listening={false}
-              />
-            )}
+            {/* no dashed outline here — the Transformer already draws a border,
+                and two overlapping outlines just obscure what is being hidden */}
           </Group>
         )
       })}
@@ -152,12 +146,26 @@ export function Redactions({
           rotateEnabled={false}
           keepRatio={false}
           ignoreStroke
-          anchorSize={Math.max(minDim * 0.018, 8)}
+          // Anchors scale with the region, not the canvas. A redaction is often
+          // a thin strip over one line of text, where fixed-size handles cover
+          // most of the very thing you are trying to check is hidden.
+          anchorSize={anchorFor(sel, imgW, imgH, fit)}
           anchorStroke="#b3a4f5"
           anchorFill="#ffffff"
-          anchorCornerRadius={3}
+          anchorStrokeWidth={1 / Math.max(fit, 0.05)}
+          anchorCornerRadius={2}
+          // top-centre and bottom-centre sit right on top of the redacted line;
+          // corners plus the side handles cover every resize without them
+          enabledAnchors={[
+            'top-left',
+            'top-right',
+            'bottom-left',
+            'bottom-right',
+            'middle-left',
+            'middle-right',
+          ]}
           borderStroke="#b3a4f5"
-          borderStrokeWidth={outline}
+          borderStrokeWidth={1.5 / Math.max(fit, 0.05)}
           boundBoxFunc={(oldBox, newBox) =>
             newBox.width < minDim * 0.02 || newBox.height < minDim * 0.02 ? oldBox : newBox
           }
