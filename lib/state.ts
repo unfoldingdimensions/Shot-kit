@@ -1,3 +1,4 @@
+import { clampAnno, type Anno } from './annotations'
 import type { ChromeKind, ChromeOS, ChromeTheme } from './chrome'
 import type { SlotPos } from './geometry'
 import { GRADIENTS } from './gradients'
@@ -59,6 +60,8 @@ export interface State {
   }
 
   text: Record<SlotPos, TextSlot>
+
+  annos: Anno[]
 
   out: { format: 'png' | 'jpg'; quality: number; scale: number }
 }
@@ -122,6 +125,7 @@ export const initialState: State = {
     left: slot({ size: 0.038, weight: 600, align: 'left', rotate: true }),
     right: slot({ size: 0.038, weight: 600, align: 'right', rotate: true }),
   },
+  annos: [],
   out: { format: 'png', quality: 0.92, scale: 2 },
 }
 
@@ -136,6 +140,14 @@ export type Action =
   | { type: 'preset'; id: string }
   | { type: 'size'; w: number; h: number }
   | { type: 'image'; src: string; w: number; h: number; name: string }
+  | { type: 'annoAdd'; anno: Anno }
+  | { type: 'annoPatch'; id: string; patch: Partial<Anno> }
+  /** mid-gesture frame: only the first one records history */
+  | { type: 'annoDrag'; id: string; patch: Partial<Anno> }
+  /** end of a gesture: closes it without recording a second step */
+  | { type: 'annoCommit'; id: string; patch: Partial<Anno> }
+  | { type: 'annoRemove'; id: string }
+  | { type: 'annoClear' }
   | { type: 'reset' }
   | { type: 'load'; state: State }
   | { type: 'undo' }
@@ -145,30 +157,61 @@ export interface History {
   present: State
   past: State[]
   future: State[]
+  /**
+   * A drag/transform is mid-flight and its pre-gesture state is already on the
+   * undo stack. Without this, a gesture either records nothing (so undo jumps
+   * past it) or records every frame (so undo crawls back a pixel at a time).
+   */
+  gesture: boolean
+}
+
+export const initialHistory: History = {
+  present: initialState,
+  past: [],
+  future: [],
+  gesture: false,
 }
 
 const LIMIT = 60
-
-/** Actions that shouldn't create an undo step of their own. */
-const TRANSIENT = new Set(['undo', 'redo', 'load'])
 
 export function reducer(h: History, a: Action): History {
   if (a.type === 'undo') {
     const prev = h.past[h.past.length - 1]
     if (!prev) return h
-    return { present: prev, past: h.past.slice(0, -1), future: [h.present, ...h.future].slice(0, LIMIT) }
+    return {
+      present: prev,
+      past: h.past.slice(0, -1),
+      future: [h.present, ...h.future].slice(0, LIMIT),
+      gesture: false,
+    }
   }
   if (a.type === 'redo') {
     const next = h.future[0]
     if (!next) return h
-    return { present: next, past: [...h.past, h.present].slice(-LIMIT), future: h.future.slice(1) }
+    return {
+      present: next,
+      past: [...h.past, h.present].slice(-LIMIT),
+      future: h.future.slice(1),
+      gesture: false,
+    }
   }
-  if (a.type === 'load') return { present: a.state, past: [], future: [] }
+  if (a.type === 'load') return { present: a.state, past: [], future: [], gesture: false }
 
   const next = apply(h.present, a)
   if (next === h.present) return h
-  if (TRANSIENT.has(a.type)) return { ...h, present: next }
-  return { present: next, past: [...h.past, h.present].slice(-LIMIT), future: [] }
+
+  const record = (gesture: boolean): History => ({
+    present: next,
+    past: [...h.past, h.present].slice(-LIMIT),
+    future: [],
+    gesture,
+  })
+
+  // first frame of a gesture records the starting point; the rest just move
+  if (a.type === 'annoDrag') return h.gesture ? { ...h, present: next } : record(true)
+  // the gesture already recorded its start, so closing it must not record again
+  if (a.type === 'annoCommit') return h.gesture ? { ...h, present: next, gesture: false } : record(false)
+  return record(false)
 }
 
 function apply(s: State, a: Action): State {
@@ -191,6 +234,25 @@ function apply(s: State, a: Action): State {
       return { ...s, presetId: 'custom', width: clampDim(a.w), height: clampDim(a.h) }
     case 'image':
       return { ...s, image: { src: a.src, w: a.w, h: a.h, name: a.name } }
+    case 'annoAdd':
+      return { ...s, annos: [...s.annos, clampAnno(a.anno)] }
+    case 'annoPatch':
+    case 'annoDrag':
+    case 'annoCommit': {
+      let hit = false
+      const annos = s.annos.map((x) => {
+        if (x.id !== a.id) return x
+        hit = true
+        return clampAnno({ ...x, ...a.patch })
+      })
+      return hit ? { ...s, annos } : s
+    }
+    case 'annoRemove': {
+      const annos = s.annos.filter((x) => x.id !== a.id)
+      return annos.length === s.annos.length ? s : { ...s, annos }
+    }
+    case 'annoClear':
+      return s.annos.length ? { ...s, annos: [] } : s
     case 'reset':
       return { ...initialState, image: s.image }
     default:

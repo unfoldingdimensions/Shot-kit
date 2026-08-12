@@ -15,7 +15,9 @@ import { clampExportScale, exportPixels } from '@/lib/export'
 import { ensureFontsLoaded, fontById } from '@/lib/fonts'
 import { fitToViewport, layout, type SlotPos } from '@/lib/geometry'
 import { measureTextBlock, SUB_SIZE_RATIO, type TextBlockMetrics } from '@/lib/measure'
+import type { Anno } from '@/lib/annotations'
 import type { State } from '@/lib/state'
+import { Annotations, NO_EXPORT } from './annotations'
 import { Background } from './background'
 import { Frame } from './frame'
 import { TextSlotView } from './text-slot'
@@ -35,8 +37,18 @@ export interface StageApi {
   } | null
 }
 
-export const CanvasStage = forwardRef<StageApi, { state: State }>(function CanvasStage(
-  { state },
+interface StageProps {
+  state: State
+  selected: string | null
+  onSelect: (id: string | null) => void
+  /** live updates while dragging (no undo step) */
+  onAnnoDrag: (id: string, patch: Partial<Anno>) => void
+  /** final value when the gesture ends (creates one undo step) */
+  onAnnoCommit: (id: string, patch: Partial<Anno>) => void
+}
+
+export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage(
+  { state, selected, onSelect, onAnnoDrag, onAnnoCommit },
   ref,
 ) {
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -149,6 +161,12 @@ export const CanvasStage = forwardRef<StageApi, { state: State }>(function Canva
       const prev = { w: stage.width(), h: stage.height(), s: stage.scaleX() }
       stage.size({ width, height })
       stage.scale({ x: 1, y: 1 })
+
+      // selection outlines and drag handles must never reach the bitmap
+      const chrome = stage.find(`.${NO_EXPORT}`)
+      const wasVisible = chrome.map((n) => n.visible())
+      chrome.forEach((n) => n.visible(false))
+
       try {
         const dataUrl = stage.toDataURL({
           mimeType: format === 'jpg' ? 'image/jpeg' : 'image/png',
@@ -157,6 +175,7 @@ export const CanvasStage = forwardRef<StageApi, { state: State }>(function Canva
         })
         return { dataUrl, ...exportPixels(width, height, safe), scale: safe }
       } finally {
+        chrome.forEach((n, i) => n.visible(wasVisible[i]))
         stage.size({ width: prev.w, height: prev.h })
         stage.scale({ x: prev.s, y: prev.s })
         stage.batchDraw()
@@ -184,7 +203,20 @@ export const CanvasStage = forwardRef<StageApi, { state: State }>(function Canva
             backgroundSize: state.bg.mode === 'transparent' ? '24px 24px' : undefined,
           }}
         >
-          <Stage ref={stageRef} width={stageW} height={stageH} scaleX={fit} scaleY={fit}>
+          <Stage
+            ref={stageRef}
+            width={stageW}
+            height={stageH}
+            scaleX={fit}
+            scaleY={fit}
+            // clicking bare canvas clears the selection
+            onMouseDown={(e) => {
+              if (e.target === e.target.getStage()) onSelect(null)
+            }}
+            onTouchStart={(e) => {
+              if (e.target === e.target.getStage()) onSelect(null)
+            }}
+          >
             <Layer listening={false}>
               <Background bg={state.bg} w={width} h={height} />
             </Layer>
@@ -211,6 +243,19 @@ export const CanvasStage = forwardRef<StageApi, { state: State }>(function Canva
                   fontFamily={fontById(text[pos].font).family}
                 />
               ))}
+            </Layer>
+            <Layer>
+              <Annotations
+                annos={state.annos}
+                w={width}
+                h={height}
+                minDim={minDim}
+                fontFamily={uiFont}
+                selected={selected}
+                onSelect={onSelect}
+                onChange={onAnnoDrag}
+                onCommit={onAnnoCommit}
+              />
             </Layer>
           </Stage>
         </div>

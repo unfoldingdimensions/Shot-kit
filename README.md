@@ -53,11 +53,26 @@ Playfair Display, JetBrains Mono.
 **Frame controls.** Padding, corner radius, scale, rotation, skew, a glass-edge highlight, and
 shadow presets (none / soft / deep / hard) with manual blur, offset and opacity.
 
+**Annotations.** Six kinds, all draggable on the canvas:
+
+- **Pointer** — a cursor glyph for "click here"
+- **Arrow** — drag either end point to re-aim it
+- **Step** — auto-numbered badges that fill the first free number, so deleting #2 of 3 never
+  produces a duplicate
+- **Box** and **Ellipse** — outline or filled highlight
+- **Spotlight** — dims the whole canvas except one region
+
+Box, ellipse and spotlight get resize and rotate handles. Select with a click, `Escape` to
+deselect, `Delete` to remove. Selection outlines and handles are hidden at export time, so they can
+never end up in the bitmap. Annotation positions are stored as fractions of the canvas, so they
+stay put when you switch output size.
+
 **Export.** PNG or JPG with a quality slider, at 1×, 2× or 3×. Download or copy straight to the
 clipboard.
 
 **Workflow.** Drag and drop, paste from the clipboard (`Ctrl/Cmd+V`), undo/redo (`Ctrl/Cmd+Z`),
-`Ctrl/Cmd+S` to export, and your styling is remembered between visits.
+`Ctrl/Cmd+S` to export, and your styling and annotations are remembered between visits. A whole
+drag or resize collapses into exactly one undo step.
 
 ## Quick start
 
@@ -147,16 +162,17 @@ lib/
 
 Ranked roughly by payoff:
 
-1. Redaction blur / pixelate region — hide emails, API keys, customer names
+1. **Redaction blur / pixelate region** — hide emails, API keys, customer names. Next up. It goes
+   inside the frame group rather than the annotation layer, so it inherits the frame's rotation and
+   can map cleanly back to source-image pixels.
 2. Batch export every selected preset in one click
-3. Annotations: arrows, numbered step badges, highlight boxes, spotlight, pointer/cursor element
-4. Named templates so a brand look is one click next time
-5. Watermark / logo upload
-6. Multi-image layouts — side by side, before/after, cascaded
-7. Shareable URL state (compressed into the hash, still no server)
-8. Syntax highlighting for the code-file window
-9. Double-click to edit text on the canvas
-10. WebGL 3D perspective tilt
+3. Named templates so a brand look is one click next time
+4. Watermark / logo upload
+5. Multi-image layouts — side by side, before/after, cascaded
+6. Shareable URL state (compressed into the hash, still no server)
+7. Syntax highlighting for the code-file window
+8. Double-click to edit text on the canvas
+9. WebGL 3D perspective tilt
 
 Not planned: accounts, cloud storage, team libraries, AI features, video capture. Each needs a
 backend and turns a tool into a product.

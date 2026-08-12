@@ -3,6 +3,7 @@ import {
   Frame as FrameIcon,
   Github,
   Image as ImageIcon,
+  MousePointer2,
   Palette,
   Redo2,
   Share2,
@@ -14,7 +15,9 @@ import { copyToClipboard, download, filenameFor } from '@/lib/export'
 import { FONTS } from '@/lib/fonts'
 import { gradientFromColors, paletteFromImage } from '@/lib/colors'
 import { findPreset } from '@/lib/presets'
-import { initialState, reducer, type Action, type State } from '@/lib/state'
+import { initialHistory, initialState, reducer, type Action, type State } from '@/lib/state'
+import type { Anno } from '@/lib/annotations'
+import { AnnotatePanel } from './panels/annotate-panel'
 import { BackgroundPanel } from './panels/background-panel'
 import { ExportPanel } from './panels/export-panel'
 import { FramePanel } from './panels/frame-panel'
@@ -42,13 +45,14 @@ function useCanvasStage() {
   return Comp
 }
 
-type Section = 'image' | 'background' | 'frame' | 'text' | 'export'
+type Section = 'image' | 'background' | 'frame' | 'text' | 'annotate' | 'export'
 
 const NAV: { id: Section; label: string; icon: typeof ImageIcon }[] = [
   { id: 'image', label: 'Screenshot', icon: ImageIcon },
   { id: 'background', label: 'Background', icon: Palette },
   { id: 'frame', label: 'Window', icon: FrameIcon },
   { id: 'text', label: 'Text', icon: Type },
+  { id: 'annotate', label: 'Annotate', icon: MousePointer2 },
   { id: 'export', label: 'Export', icon: Share2 },
 ]
 
@@ -75,17 +79,26 @@ function readFile(file: File): Promise<{ src: string; w: number; h: number; name
 }
 
 export function EditorShell() {
-  const [hist, dispatch] = useReducer(reducer, { present: initialState, past: [], future: [] })
+  const [hist, dispatch] = useReducer(reducer, initialHistory)
   const state = hist.present
   const [section, setSection] = useState<Section>('image')
   const [dragging, setDragging] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
   const stage = useRef<StageApi>(null)
   const CanvasStage = useCanvasStage()
   const fileInput = useRef<HTMLInputElement>(null)
   const target = useRef<'screenshot' | 'background'>('screenshot')
 
   const act = useCallback((a: Action) => dispatch(a), [])
+  const annoDrag = useCallback(
+    (id: string, patch: Partial<Anno>) => dispatch({ type: 'annoDrag', id, patch }),
+    [],
+  )
+  const annoCommit = useCallback(
+    (id: string, patch: Partial<Anno>) => dispatch({ type: 'annoCommit', id, patch }),
+    [],
+  )
 
   // --- restore / persist styling -------------------------------------------
   useEffect(() => {
@@ -156,6 +169,12 @@ export function EditorShell() {
       if (mod && e.key.toLowerCase() === 's') {
         e.preventDefault()
         doDownload()
+      }
+      if (e.key === 'Escape' && selected) setSelected(null)
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+        e.preventDefault()
+        act({ type: 'annoRemove', id: selected })
+        setSelected(null)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -344,7 +363,16 @@ export function EditorShell() {
             {/* explicit box: the stage measures its parent, so it cannot be
                 content-sized or the measurement is circular */}
             <div className="absolute inset-3">
-              {CanvasStage && <CanvasStage ref={stage} state={state} />}
+              {CanvasStage && (
+                <CanvasStage
+                  ref={stage}
+                  state={state}
+                  selected={selected}
+                  onSelect={setSelected}
+                  onAnnoDrag={annoDrag}
+                  onAnnoCommit={annoCommit}
+                />
+              )}
             </div>
 
             {!state.image.src && !dragging && (
@@ -402,6 +430,14 @@ export function EditorShell() {
             )}
             {section === 'frame' && <FramePanel state={state} dispatch={act} />}
             {section === 'text' && <TextPanel state={state} dispatch={act} />}
+            {section === 'annotate' && (
+              <AnnotatePanel
+                state={state}
+                dispatch={act}
+                selected={selected}
+                onSelect={setSelected}
+              />
+            )}
             {section === 'export' && (
               <ExportPanel state={state} dispatch={act} onDownload={doDownload} onCopy={doCopy} />
             )}

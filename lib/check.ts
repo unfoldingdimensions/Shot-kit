@@ -11,8 +11,9 @@ import { fitToViewport, fitFrame, layout, gradientPoints, coverRect } from './ge
 import { fitToImage, findPreset, presetGroups, PRESETS } from './presets'
 import { dominantColors, gradientFromColors, luminance, mix, toHex, fromHex } from './colors'
 import { konvaStops, GRADIENTS } from './gradients'
-import { reducer, initialState, clampDim, type History } from './state'
+import { reducer, initialState, initialHistory, clampDim, type History } from './state'
 import { CHROME_BAR_RATIO } from './chrome'
+import { ANNO_KINDS, BOXY, clampAnno, createAnno, nextBadgeLabel, POINTER_PATH } from './annotations'
 
 const near = (a: number, b: number, eps = 0.01) =>
   assert.ok(Math.abs(a - b) < eps, `expected ${a} ≈ ${b}`)
@@ -226,7 +227,7 @@ assert.equal(clampDim(0), 64)
 assert.equal(clampDim(99999), 8000)
 assert.equal(clampDim(1234.6), 1235)
 {
-  let h: History = { present: initialState, past: [], future: [] }
+  let h: History = initialHistory
   h = reducer(h, { type: 'preset', id: 'ig-story' })
   assert.equal(h.present.width, 1080)
   assert.equal(h.present.height, 1920)
@@ -247,7 +248,7 @@ assert.equal(clampDim(1234.6), 1235)
   assert.equal(h.future.length, 0)
 
   // undo past the beginning is a no-op, not a crash
-  let empty: History = { present: initialState, past: [], future: [] }
+  let empty: History = initialHistory
   assert.equal(reducer(empty, { type: 'undo' }), empty)
   assert.equal(reducer(empty, { type: 'redo' }), empty)
 
@@ -258,13 +259,120 @@ assert.equal(clampDim(1234.6), 1235)
   assert.equal(afterReset.present.frame.chrome, 'browser')
 
   // history is bounded
-  let many: History = { present: initialState, past: [], future: [] }
+  let many: History = initialHistory
   for (let i = 0; i < 200; i++) many = reducer(many, { type: 'frame', patch: { rotation: i * 0.1 } })
   assert.ok(many.past.length <= 60, `history capped, got ${many.past.length}`)
 
   // unknown preset id leaves state untouched
   const before = h.present
   assert.equal(reducer(h, { type: 'preset', id: 'nope' }).present, before)
+}
+
+// --- annotations -----------------------------------------------------------
+{
+  // every kind must produce on-canvas defaults, or a new annotation appears
+  // somewhere the user cannot see and looks like a no-op
+  for (const k of ANNO_KINDS) {
+    const a = createAnno(k.id, 'x')
+    assert.ok(a.x >= 0 && a.x <= 1 && a.y >= 0 && a.y <= 1, `${k.id} starts on canvas`)
+    assert.ok(a.size > 0, `${k.id} has a visible size`)
+    assert.equal(a.kind, k.id)
+    if (BOXY.includes(k.id)) assert.ok(a.w > 0.02 && a.h > 0.02, `${k.id} has a grabbable box`)
+  }
+  assert.match(createAnno('badge', 'x').color, /^#[0-9a-f]{6}$/i)
+  assert.equal(POINTER_PATH.length % 2, 0, 'pointer polygon is x,y pairs')
+}
+{
+  // step numbers fill the first gap, so deleting #2 of 3 cannot duplicate a number
+  const mk = (label: string) => ({ ...createAnno('badge', label), label })
+  assert.equal(nextBadgeLabel([]), '1')
+  assert.equal(nextBadgeLabel([mk('1'), mk('2')]), '3')
+  assert.equal(nextBadgeLabel([mk('1'), mk('3')]), '2', 'reuses the gap')
+  // non-badge annotations must not consume numbers
+  assert.equal(nextBadgeLabel([createAnno('box', 'b')]), '1')
+}
+{
+  // dragging must never lose an annotation off the canvas
+  const far = clampAnno({ ...createAnno('badge', 'b'), x: 9, y: -4 })
+  assert.equal(far.x, 1)
+  assert.equal(far.y, 0)
+
+  const arrow = clampAnno({ ...createAnno('arrow', 'a'), x: -2, y: 0.5, x2: 7, y2: 0.5 })
+  assert.equal(arrow.x, 0)
+  assert.equal(arrow.x2, 1)
+  assert.equal(arrow.y, 0.5, 'in-range coordinates are untouched')
+
+  // a box keeps at least half of itself on canvas, and cannot be resized to nothing
+  const box = clampAnno({ ...createAnno('box', 'c'), x: 5, y: 5, w: 0.4, h: 0.4 })
+  assert.ok(box.x <= 1 - box.w / 2 + 1e-9 && box.y <= 1 - box.h / 2 + 1e-9)
+  assert.equal(clampAnno({ ...createAnno('box', 'd'), w: 0, h: -1 }).w, 0.02)
+}
+{
+  // A whole drag gesture must collapse to exactly ONE undo step that lands back
+  // on the pre-drag position. Recording nothing makes undo skip the drag
+  // entirely; recording every frame makes undo crawl back a pixel at a time.
+  let h: History = initialHistory
+  assert.deepEqual(h.present.annos, [])
+
+  h = reducer(h, { type: 'annoAdd', anno: createAnno('arrow', 'a1') })
+  const startX = h.present.annos[0].x
+  const depth = h.past.length
+
+  h = reducer(h, { type: 'annoDrag', id: 'a1', patch: { x: 0.1 } })
+  assert.equal(h.past.length, depth + 1, 'the first frame records the starting point')
+  assert.equal(h.gesture, true)
+  h = reducer(h, { type: 'annoDrag', id: 'a1', patch: { x: 0.2 } })
+  h = reducer(h, { type: 'annoDrag', id: 'a1', patch: { x: 0.3 } })
+  assert.equal(h.past.length, depth + 1, 'later frames record nothing')
+  assert.equal(h.present.annos[0].x, 0.3, 'but still move the annotation')
+
+  h = reducer(h, { type: 'annoCommit', id: 'a1', patch: { x: 0.4 } })
+  assert.equal(h.past.length, depth + 1, 'closing the gesture records nothing extra')
+  assert.equal(h.gesture, false)
+  assert.equal(h.present.annos[0].x, 0.4)
+
+  h = reducer(h, { type: 'undo' })
+  assert.equal(h.present.annos[0].x, startX, 'one undo reverts the entire gesture')
+  h = reducer(h, { type: 'redo' })
+  assert.equal(h.present.annos[0].x, 0.4, 'redo reapplies the whole gesture')
+
+  // a commit with no preceding drag (transform-end) still records its own step
+  const d2 = h.past.length
+  h = reducer(h, { type: 'annoCommit', id: 'a1', patch: { w: 0.5 } })
+  assert.equal(h.past.length, d2 + 1, 'a bare commit records one step')
+  h = reducer(h, { type: 'undo' })
+  assert.equal(h.present.annos[0].w, 0.2)
+  h = reducer(h, { type: 'redo' })
+
+  // an unrelated edit mid-gesture must still record itself
+  let g: History = initialHistory
+  g = reducer(g, { type: 'annoAdd', anno: createAnno('box', 'b9') })
+  g = reducer(g, { type: 'annoDrag', id: 'b9', patch: { x: 0.7 } })
+  const mid = g.past.length
+  g = reducer(g, { type: 'frame', patch: { rotation: 5 } })
+  assert.equal(g.past.length, mid + 1, 'unrelated edits are never swallowed by a gesture')
+  assert.equal(g.gesture, false)
+
+  // patching a missing id is a no-op rather than a crash
+  const same = reducer(h, { type: 'annoPatch', id: 'nope', patch: { x: 0.9 } })
+  assert.equal(same.present, h.present)
+  assert.equal(reducer(h, { type: 'annoRemove', id: 'nope' }).present, h.present)
+
+  h = reducer(h, { type: 'annoAdd', anno: createAnno('badge', 'b1') })
+  h = reducer(h, { type: 'annoRemove', id: 'a1' })
+  assert.deepEqual(h.present.annos.map((a) => a.id), ['b1'])
+
+  h = reducer(h, { type: 'annoClear' })
+  assert.equal(h.present.annos.length, 0)
+  assert.equal(reducer(h, { type: 'annoClear' }).present, h.present, 'clearing twice is a no-op')
+
+  // reset drops annotations but keeps the screenshot
+  let r: History = initialHistory
+  r = reducer(r, { type: 'image', src: 'blob:x', w: 8, h: 6, name: 'n.png' })
+  r = reducer(r, { type: 'annoAdd', anno: createAnno('box', 'z') })
+  r = reducer(r, { type: 'reset' })
+  assert.equal(r.present.annos.length, 0)
+  assert.equal(r.present.image.src, 'blob:x')
 }
 
 console.log('ok — all checks passed')
