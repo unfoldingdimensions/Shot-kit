@@ -71,9 +71,13 @@ stay put when you switch output size.
 **Export.** PNG or JPG with a quality slider, at 1×, 2× or 3×. Download or copy straight to the
 clipboard.
 
-**Zoom.** Zoom the canvas with the controls bottom-right, or `Ctrl`/`⌘` + scroll. Zoom is a view
-setting only — export always renders at 1:1, so the exported pixels never change. "Fit to window"
-resets it.
+**Zoom and pan.** Zoom with the controls bottom-right or `Ctrl`/`⌘` + scroll; once the canvas is
+bigger than its viewport, drag any empty part of it to pan. Zoom is a view setting only — export
+always renders at 1:1, so the exported pixels never change. "Fit to window" resets it.
+
+**Moving annotations.** Drag the annotation itself. No modifier key: click and drag an arrow, badge,
+box or redaction to move it, drag a handle to resize, or drag either end of an arrow to re-aim it.
+The cursor changes to indicate what is grabbable.
 
 **Resets.** Every panel has its own reset that restores just that section, plus a two-step
 **Reset all** in the header for everything at once (your screenshot is kept). Annotations have
@@ -171,8 +175,8 @@ lib/
   and slight-tilt. A WebGL frame layer would be needed for the rest.
 - **Text is edited in the sidebar**, not by clicking it on the canvas.
 - **Bold and italic apply per text block**, not to a single word mid-sentence.
-- **Background blur is a downscale**, not a gaussian, so only heavy blurs look right. Deliberate
-  trade: it exports correctly at any scale, which a cached Konva filter does not.
+- **Background blur needs Canvas2D filters** (Safari 17+). Without them it falls back to a
+  step-by-step downscale, which is coarser at high strength.
 - **Private-browsing modes that block IndexedDB** will still restore styling but not the screenshot.
 
 ## Roadmap

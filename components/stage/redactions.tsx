@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { Group, Image as KImage, Rect, Transformer } from 'react-konva'
 import { anchorFor, type Anno } from '@/lib/annotations'
 import { cropBlur, pixelateBlocks } from '@/lib/raster'
-import { NO_EXPORT } from './annotations'
+import { NO_EXPORT, setCursor } from './annotations'
 
 interface Props {
   items: Anno[]
@@ -113,7 +113,13 @@ export function Redactions({
             draggable
             onMouseDown={() => onSelect(a.id)}
             onTouchStart={() => onSelect(a.id)}
-            onDragEnd={(e) => onCommit(a.id, { x: e.target.x() / imgW, y: e.target.y() / imgH })}
+            onMouseEnter={(e) => setCursor(e, 'move')}
+            onMouseLeave={(e) => setCursor(e, '')}
+            onDragStart={(e) => setCursor(e, 'grabbing')}
+            onDragEnd={(e) => {
+              setCursor(e, 'move')
+              onCommit(a.id, { x: e.target.x() / imgW, y: e.target.y() / imgH })
+            }}
             onTransformEnd={(e) => {
               const n = e.target
               const sx = n.scaleX()

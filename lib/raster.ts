@@ -1,26 +1,99 @@
-/**
- * Background blur by downscale-then-upscale rather than Konva.Filters.Blur.
- *
- * The filter route needs node.cache(), and a node cached at screen scale
- * exports soft at 2–3x pixelRatio. A downscaled bitmap is just a bitmap: the
- * browser resamples it at whatever resolution we export, so it stays correct.
- * ponytail: only heavy blurs look right this way — fine, background blur always
- * is. Swap in a real gaussian if small radii are ever needed.
- */
-export function downscaleBlur(img: HTMLImageElement, amount: number): CanvasImageSource {
-  if (amount <= 0.001) return img
-  const f = 1 + amount * 39
-  const w = Math.max(2, Math.round(img.naturalWidth / f))
-  const h = Math.max(2, Math.round(img.naturalHeight / f))
+/** Longest edge we render a blurred backdrop at. Blur has no fine detail to keep. */
+const MAX_BLUR_EDGE = 1600
+
+/** How far past the blur radius the gaussian's tail still contributes. */
+const EDGE_SIGMAS = 3
+
+export interface BlurPlan {
+  w: number
+  h: number
+  radius: number
+  /** draw the source this much larger than the canvas, then crop */
+  overscan: number
+}
+
+export function blurPlan(iw: number, ih: number, amount: number): BlurPlan {
+  const fit = Math.min(1, MAX_BLUR_EDGE / Math.max(iw, ih, 1))
+  const w = Math.max(8, Math.round(iw * fit))
+  const h = Math.max(8, Math.round(ih * fit))
+  const short = Math.min(w, h)
+  const radius = Math.max(0, Math.min(amount, 1)) * 0.09 * short
+  // A gaussian samples transparent pixels past the edge, which fades the border
+  // and reads as a dark vignette once composited (measured: alpha 236 instead
+  // of 255 in the corners). CSS blur(r) takes r as the standard deviation, so
+  // the falloff runs to about 3σ — the overscan margin has to match that, not
+  // the radius itself.
+  return { w, h, radius, overscan: 1 + (2 * EDGE_SIGMAS * radius) / short }
+}
+
+function paint(src: CanvasImageSource, w: number, h: number): HTMLCanvasElement {
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
   const g = c.getContext('2d')
-  if (!g) return img
-  g.imageSmoothingEnabled = true
-  g.imageSmoothingQuality = 'high'
-  g.drawImage(img, 0, 0, w, h)
+  if (g) {
+    g.imageSmoothingEnabled = true
+    g.imageSmoothingQuality = 'high'
+    g.drawImage(src, 0, 0, w, h)
+  }
   return c
+}
+
+let canvasFilter: boolean | null = null
+function supportsCanvasFilter() {
+  if (canvasFilter !== null) return canvasFilter
+  const g = document.createElement('canvas').getContext('2d')
+  if (!g) return (canvasFilter = false)
+  g.filter = 'blur(2px)'
+  return (canvasFilter = g.filter === 'blur(2px)')
+}
+
+/**
+ * Blurred backdrop for the background image.
+ *
+ * This used to shrink the source in one step and let the upscale do the
+ * blurring. Past about half strength that meant reducing an image to a few
+ * hundred pixels total — a 640x400 source became 16x10 — and magnifying it
+ * ~100x, which shows as bilinear quilting and throws away all colour fidelity.
+ * A real gaussian has neither problem and stays correct at any export scale,
+ * because the result is still just a bitmap.
+ */
+export function blurBackdrop(img: HTMLImageElement, amount: number): CanvasImageSource {
+  if (amount <= 0.001) return img
+  const iw = img.naturalWidth
+  const ih = img.naturalHeight
+  if (!iw || !ih) return img
+
+  const p = blurPlan(iw, ih, amount)
+
+  if (supportsCanvasFilter()) {
+    const c = document.createElement('canvas')
+    c.width = p.w
+    c.height = p.h
+    const g = c.getContext('2d')
+    if (!g) return img
+    g.imageSmoothingEnabled = true
+    g.imageSmoothingQuality = 'high'
+    const dw = p.w * p.overscan
+    const dh = p.h * p.overscan
+    g.filter = `blur(${p.radius}px)`
+    g.drawImage(img, (p.w - dw) / 2, (p.h - dh) / 2, dw, dh)
+    g.filter = 'none'
+    return c
+  }
+
+  // Older Safari has no Canvas2D filter. Fall back to downscaling, but halve
+  // step by step: one extreme reduction aliases badly, which is what produced
+  // the artefacts in the first place.
+  const factor = 1 + amount * 39
+  const tw = Math.max(2, Math.round(iw / factor))
+  let w = iw
+  let src: CanvasImageSource = img
+  while (w > tw * 2) {
+    w = Math.max(tw, Math.round(w / 2))
+    src = paint(src, w, Math.max(2, Math.round((ih * w) / iw)))
+  }
+  return paint(src, tw, Math.max(2, Math.round((ih * tw) / iw)))
 }
 
 export interface Region {

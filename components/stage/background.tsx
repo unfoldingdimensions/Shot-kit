@@ -3,14 +3,14 @@ import { useMemo } from 'react'
 import { Group, Image as KImage, Rect } from 'react-konva'
 import { coverRect, gradientPoints } from '@/lib/geometry'
 import { konvaStops } from '@/lib/gradients'
-import { downscaleBlur, noiseTile } from '@/lib/raster'
+import { blurBackdrop, noiseTile } from '@/lib/raster'
 import type { State } from '@/lib/state'
 import { useImage } from './use-image'
 
 export function Background({ bg, w, h }: { bg: State['bg']; w: number; h: number }) {
   const img = useImage(bg.mode === 'image' ? bg.imageSrc : null)
   const blurred = useMemo(
-    () => (img ? downscaleBlur(img, bg.imageBlur) : null),
+    () => (img ? blurBackdrop(img, bg.imageBlur) : null),
     [img, bg.imageBlur],
   )
   const grain = useMemo(() => (bg.grain > 0 ? noiseTile() : null), [bg.grain])

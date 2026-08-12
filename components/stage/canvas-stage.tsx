@@ -18,7 +18,7 @@ import { fitToViewport, layout, type SlotPos } from '@/lib/geometry'
 import { measureTextBlock, SUB_SIZE_RATIO, type TextBlockMetrics } from '@/lib/measure'
 import { inFrameSpace, type Anno } from '@/lib/annotations'
 import type { State } from '@/lib/state'
-import { Annotations, NO_EXPORT } from './annotations'
+import { Annotations, NO_EXPORT, setCursor } from './annotations'
 import { Background } from './background'
 import { Frame } from './frame'
 import { TextSlotView } from './text-slot'
@@ -57,10 +57,34 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
   const [avail, setAvail] = useState({ w: 0, h: 0 })
   const [fontsReady, setFontsReady] = useState(false)
   const [zoom, setZoom] = useState(1)
+  const pan = useRef<{ x: number; y: number; left: number; top: number } | null>(null)
   const img = useImage(state.image.src)
 
   useEffect(() => {
     ensureFontsLoaded().then(() => setFontsReady(true))
+  }, [])
+
+  // pan continues outside the canvas, so these live on the window
+  useEffect(() => {
+    const move = (ev: MouseEvent) => {
+      const p = pan.current
+      const el = wrapRef.current
+      if (!p || !el) return
+      ev.preventDefault()
+      el.scrollLeft = p.left - (ev.clientX - p.x)
+      el.scrollTop = p.top - (ev.clientY - p.y)
+    }
+    const end = () => {
+      if (!pan.current) return
+      pan.current = null
+      if (wrapRef.current) wrapRef.current.style.cursor = ''
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', end)
+    return () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', end)
+    }
   }, [])
 
   useLayoutEffect(() => {
@@ -200,6 +224,16 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
 
   const zoomBy = (f: number) => setZoom((z) => Math.min(Math.max(z * f, 0.2), 6))
 
+  // once the stage is bigger than its viewport, dragging empty canvas pans it
+  const canPan = stageW > avail.w - 8 || stageH > avail.h - 8
+
+  const startPan = (clientX: number, clientY: number) => {
+    const el = wrapRef.current
+    if (!el || !canPan) return
+    pan.current = { x: clientX, y: clientY, left: el.scrollLeft, top: el.scrollTop }
+    el.style.cursor = 'grabbing'
+  }
+
   return (
     <div className="relative h-full w-full">
       <div
@@ -236,13 +270,19 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
             height={stageH}
             scaleX={fit}
             scaleY={fit}
-            // clicking bare canvas clears the selection
+            // bare canvas: click clears the selection, drag pans when zoomed
             onMouseDown={(e) => {
-              if (e.target === e.target.getStage()) onSelect(null)
+              if (e.target !== e.target.getStage()) return
+              onSelect(null)
+              startPan(e.evt.clientX, e.evt.clientY)
             }}
             onTouchStart={(e) => {
               if (e.target === e.target.getStage()) onSelect(null)
             }}
+            onMouseEnter={(e) => {
+              if (canPan && e.target === e.target.getStage()) setCursor(e, 'grab')
+            }}
+            onMouseLeave={(e) => setCursor(e, '')}
           >
             <Layer listening={false}>
               <Background bg={state.bg} w={width} h={height} />

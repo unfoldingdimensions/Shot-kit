@@ -25,7 +25,7 @@ import {
   nextBadgeLabel,
   POINTER_PATH,
 } from './annotations'
-import { averageBlocks, blockDims } from './raster'
+import { averageBlocks, blockDims, blurPlan } from './raster'
 
 const near = (a: number, b: number, eps = 0.01) =>
   assert.ok(Math.abs(a - b) < eps, `expected ${a} ≈ ${b}`)
@@ -470,6 +470,45 @@ assert.equal(clampDim(1234.6), 1235)
   assert.ok(tiny.w >= 0.02 && tiny.h >= 0.02)
   const off = clampAnno({ ...createAnno('redact', 'r'), x: 4, y: -3, w: 0.3, h: 0.1 })
   assert.ok(off.x <= 1 - 0.3 / 2 + 1e-9 && off.y >= -0.1 / 2 - 1e-9)
+}
+
+// --- background blur -------------------------------------------------------
+{
+  // The old approach reduced a 640x400 source to 16x10 at full strength and
+  // magnified it ~100x. Whatever else changes, the working canvas must stay
+  // near the source resolution so colour and large-scale structure survive.
+  const small = blurPlan(640, 400, 1)
+  assert.deepEqual([small.w, small.h], [640, 400], 'a small source is not shrunk at all')
+  const huge = blurPlan(6000, 4000, 1)
+  assert.equal(Math.max(huge.w, huge.h), 1600, 'a huge source is capped, not destroyed')
+  assert.ok(Math.abs(huge.w / huge.h - 6000 / 4000) < 0.01, 'aspect preserved')
+
+  // radius scales with strength and with the image, so blur looks the same
+  // regardless of source resolution
+  assert.equal(blurPlan(640, 400, 0).radius, 0, 'zero strength is no blur')
+  assert.ok(blurPlan(640, 400, 1).radius > blurPlan(640, 400, 0.5).radius)
+  const a = blurPlan(800, 600, 0.6)
+  const b = blurPlan(1600, 1200, 0.6)
+  near(a.radius / Math.min(a.w, a.h), b.radius / Math.min(b.w, b.h), 0.001)
+
+  // overscan must always push the gaussian's edge falloff outside the crop,
+  // otherwise the border fades and reads as an unwanted vignette
+  for (const amount of [0.1, 0.5, 1]) {
+    const p = blurPlan(1200, 800, amount)
+    assert.ok(p.overscan >= 1, 'never shrinks the source inside the frame')
+    const marginPx = ((p.overscan - 1) / 2) * Math.min(p.w, p.h)
+    // one radius of margin left the corners at alpha 236; blur(r) treats r as
+    // the standard deviation, so the tail needs ~3 of them
+    assert.ok(marginPx >= p.radius * 3 - 1e-9, `margin ${marginPx} vs radius ${p.radius}`)
+  }
+  assert.equal(blurPlan(1200, 800, 0).overscan, 1, 'no zoom when there is no blur')
+
+  // degenerate inputs must not produce a zero-sized or NaN canvas
+  for (const [w, h] of [[0, 0], [1, 1], [3, 5000]]) {
+    const p = blurPlan(w, h, 1)
+    assert.ok(p.w >= 8 && p.h >= 8, `${w}x${h} -> ${p.w}x${p.h}`)
+    assert.ok(Number.isFinite(p.radius) && Number.isFinite(p.overscan))
+  }
 }
 
 // --- section resets --------------------------------------------------------

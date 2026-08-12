@@ -11,6 +11,15 @@ import { ANCHOR_SCREEN_PX, BOXY, POINTER_PATH, type Anno } from '@/lib/annotatio
  */
 export const NO_EXPORT = 'no-export'
 
+/**
+ * Konva draws to a canvas, so the browser has no idea a shape under the pointer
+ * is draggable. The container's CSS cursor has to be driven by hand.
+ */
+export function setCursor(e: { target: Konva.Node }, cursor: string) {
+  const el = e.target.getStage()?.container()
+  if (el) el.style.cursor = cursor
+}
+
 interface Props {
   annos: Anno[]
   w: number
@@ -188,6 +197,8 @@ export function Annotations({
                 hitStrokeWidth={Math.max(sw * 6, 18)}
                 onMouseDown={() => onSelect(a.id)}
                 onTouchStart={() => onSelect(a.id)}
+                onMouseEnter={(e) => setCursor(e, 'move')}
+                onMouseLeave={(e) => setCursor(e, '')}
                 shadowColor="#000"
                 shadowBlur={sw * 2.2}
                 shadowOpacity={0.28}
@@ -209,6 +220,9 @@ export function Annotations({
                     stroke="#b3a4f5"
                     strokeWidth={outline}
                     draggable
+                    onMouseEnter={(e) => setCursor(e, 'grab')}
+                    onMouseLeave={(e) => setCursor(e, '')}
+                    onDragStart={(e) => setCursor(e, 'grabbing')}
                     onDragMove={(e) =>
                       onChange(
                         a.id,
@@ -248,7 +262,13 @@ export function Annotations({
             draggable
             onMouseDown={() => onSelect(a.id)}
             onTouchStart={() => onSelect(a.id)}
-            onDragEnd={(e) => onCommit(a.id, { x: e.target.x() / w, y: e.target.y() / h })}
+            onMouseEnter={(e) => setCursor(e, 'move')}
+            onMouseLeave={(e) => setCursor(e, '')}
+            onDragStart={(e) => setCursor(e, 'grabbing')}
+            onDragEnd={(e) => {
+              setCursor(e, 'move')
+              onCommit(a.id, { x: e.target.x() / w, y: e.target.y() / h })
+            }}
             onTransformEnd={(e) => {
               const n = e.target
               const sx = n.scaleX()

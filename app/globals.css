@@ -38,6 +38,29 @@ body {
   overscroll-behavior: none;
 }
 
+/* Tailwind v4's preflight sets buttons to `cursor: default`, so nothing in the
+   UI signalled that it was clickable. Put the pointer back on everything
+   interactive. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+label:has(input[type='checkbox']),
+summary,
+select,
+a[href] {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+input[type='color'],
+input[type='range'] {
+  cursor: pointer;
+}
+input[type='range']:active {
+  cursor: grabbing;
+}
+
 /* Native range input, restyled — cheaper than a slider dependency */
 input[type='range'] {
   -webkit-appearance: none;

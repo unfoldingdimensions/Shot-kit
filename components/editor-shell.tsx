@@ -16,7 +16,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { copyToClipboard, download, filenameFor } from '@/lib/export'
 import { FONTS } from '@/lib/fonts'
 import { gradientFromColors, paletteFromImage } from '@/lib/colors'
-import { clearScreenshot, loadScreenshot, saveScreenshot } from '@/lib/idb'
+import { clearImage, loadImage, saveImage } from '@/lib/idb'
 import { findPreset } from '@/lib/presets'
 import { initialHistory, initialState, reducer, type Action, type State } from '@/lib/state'
 import type { Anno } from '@/lib/annotations'
@@ -117,8 +117,12 @@ export function EditorShell() {
         /* corrupt or unavailable storage is not worth failing over */
       }
       try {
-        const shot = await loadScreenshot()
+        const [shot, backdrop] = await Promise.all([
+          loadImage('screenshot'),
+          loadImage('background'),
+        ])
         if (shot?.src) next = { ...next, image: shot }
+        if (backdrop?.src) next = { ...next, bg: { ...next.bg, imageSrc: backdrop.src } }
       } catch {
         /* private mode, or no IndexedDB */
       }
@@ -145,17 +149,21 @@ export function EditorShell() {
     return () => clearTimeout(t)
   }, [state, restored])
 
-  // the screenshot goes to IndexedDB; gated on `restored` so the empty initial
-  // state cannot wipe the stored image before it has been read back
+  // dropped images go to IndexedDB; gated on `restored` so the empty initial
+  // state cannot wipe what was stored before it has been read back
   useEffect(() => {
     if (!restored) return
     const { src, w, h, name } = state.image
-    if (!src) {
-      clearScreenshot().catch(() => {})
-      return
-    }
-    saveScreenshot({ src, w, h, name }).catch(() => {})
+    if (!src) clearImage('screenshot').catch(() => {})
+    else saveImage('screenshot', { src, w, h, name }).catch(() => {})
   }, [state.image, restored])
+
+  useEffect(() => {
+    if (!restored) return
+    const src = state.bg.imageSrc
+    if (!src) clearImage('background').catch(() => {})
+    else saveImage('background', { src, w: 0, h: 0, name: '' }).catch(() => {})
+  }, [state.bg.imageSrc, restored])
 
   // --- image intake --------------------------------------------------------
   const accept = useCallback(

@@ -8,7 +8,9 @@
  */
 const DB_NAME = 'shotkit'
 const STORE = 'session'
-const KEY = 'screenshot'
+
+/** Both dropped images are stored; neither fits in localStorage. */
+export type ImageSlot = 'screenshot' | 'background'
 
 export interface StoredImage {
   src: string
@@ -39,10 +41,10 @@ function withStore<T>(
   })
 }
 
-export const saveScreenshot = (img: StoredImage) =>
-  withStore<void>('readwrite', (s) => s.put(img, KEY))
+export const saveImage = (slot: ImageSlot, img: StoredImage) =>
+  withStore<void>('readwrite', (s) => s.put(img, slot))
 
-export const loadScreenshot = () =>
-  withStore<StoredImage | undefined>('readonly', (s) => s.get(KEY))
+export const loadImage = (slot: ImageSlot) =>
+  withStore<StoredImage | undefined>('readonly', (s) => s.get(slot))
 
-export const clearScreenshot = () => withStore<void>('readwrite', (s) => s.delete(KEY))
+export const clearImage = (slot: ImageSlot) => withStore<void>('readwrite', (s) => s.delete(slot))
