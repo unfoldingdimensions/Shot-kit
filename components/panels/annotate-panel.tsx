@@ -13,6 +13,7 @@ import {
   ANNO_KINDS,
   BOXY,
   REDACT_MODES,
+  canRotate,
   createAnno,
   type Anno,
   type AnnoKind,
@@ -215,7 +216,7 @@ export function AnnotatePanel({
             <Toggle label="Filled" checked={sel.filled} onChange={(filled) => set({ filled })} />
           )}
 
-          {BOXY.includes(sel.kind) && sel.kind !== 'redact' && (
+          {canRotate(sel.kind) && (
             <Slider
               label="Rotate"
               min={-180}
@@ -242,7 +243,7 @@ export function AnnotatePanel({
           <p className="text-[12px] leading-relaxed text-muted">
             {annos.length
               ? 'Select an annotation on the canvas or in the list above to edit it.'
-              : 'Add a pointer, arrow, step number, box, ellipse or spotlight. They sit above the screenshot and move with the canvas when you change size.'}
+              : 'Add a pointer, arrow, step number, box, ellipse, spotlight or redaction. They move with the canvas when you change output size.'}
           </p>
         </Card>
       )}

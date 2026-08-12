@@ -13,8 +13,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "check": "node --experimental-strip-types --import ./lib/ts-resolve.mjs lib/check.ts"
+    "typecheck": "tsc --noEmit",
+    "check": "node --experimental-strip-types --import ./lib/ts-resolve.mjs lib/check.ts",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "konva": "^9.3.20",

@@ -231,10 +231,18 @@ function apply(s: State, a: Action): State {
       return { ...s, text: { ...s.text, [a.pos]: { ...s.text[a.pos], ...a.patch } } }
     case 'preset': {
       const p = findPreset(a.id)
-      return p ? { ...s, presetId: p.id, width: p.w, height: p.h } : s
+      if (!p) return s
+      // returning a fresh object for an unchanged value would record a useless
+      // undo step — re-picking the preset you are already on
+      if (s.presetId === p.id && s.width === p.w && s.height === p.h) return s
+      return { ...s, presetId: p.id, width: p.w, height: p.h }
     }
-    case 'size':
-      return { ...s, presetId: 'custom', width: clampDim(a.w), height: clampDim(a.h) }
+    case 'size': {
+      const w = clampDim(a.w)
+      const h = clampDim(a.h)
+      if (s.presetId === 'custom' && s.width === w && s.height === h) return s
+      return { ...s, presetId: 'custom', width: w, height: h }
+    }
     case 'image':
       return { ...s, image: { src: a.src, w: a.w, h: a.h, name: a.name } }
     case 'annoAdd':

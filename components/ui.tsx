@@ -64,7 +64,7 @@ export function Segments<T extends string>({
   className = '',
 }: {
   value: T
-  options: { id: T; label: ReactNode; title?: string }[]
+  options: { id: T; label: ReactNode; title?: string; disabled?: boolean }[]
   onChange: (v: T) => void
   className?: string
 }) {
@@ -75,11 +75,12 @@ export function Segments<T extends string>({
           key={o.id}
           type="button"
           title={o.title}
+          disabled={o.disabled}
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
           className={`flex-1 rounded-[10px] px-2 py-1.5 text-[12px] font-medium transition-colors ${
             value === o.id ? 'bg-ink text-white' : 'text-muted hover:text-ink'
-          }`}
+          } disabled:pointer-events-none disabled:opacity-35`}
         >
           {o.label}
         </button>

@@ -2,7 +2,14 @@
 import type Konva from 'konva'
 import { useEffect, useRef } from 'react'
 import { Arrow, Circle, Ellipse, Group, Line, Rect, Shape, Text, Transformer } from 'react-konva'
-import { ANCHOR_SCREEN_PX, BOXY, POINTER_PATH, type Anno } from '@/lib/annotations'
+import {
+  ANCHOR_SCREEN_PX,
+  BOXY,
+  POINTER_PATH,
+  canRotate,
+  moveArrow,
+  type Anno,
+} from '@/lib/annotations'
 
 /**
  * Selection outlines and drag handles carry this name so `exportImage` can hide
@@ -184,7 +191,24 @@ export function Annotations({
         if (a.kind === 'arrow') {
           const sw = Math.max(a.size * minDim, 1)
           return (
-            <Group key={a.id}>
+            // The whole arrow drags as one. Its geometry is two absolute
+            // endpoints rather than an origin plus size, so the group's own
+            // offset is converted into a shift of both endpoints and then reset
+            // to zero — otherwise the offset would compound on the next drag.
+            <Group
+              key={a.id}
+              draggable
+              onDragStart={(e) => setCursor(e, 'grabbing')}
+              onDragEnd={(e) => {
+                const g = e.target
+                const dx = g.x() / w
+                const dy = g.y() / h
+                g.position({ x: 0, y: 0 })
+                setCursor(e, 'move')
+                const moved = moveArrow(a, dx, dy)
+                onCommit(a.id, { x: moved.x, y: moved.y, x2: moved.x2, y2: moved.y2 })
+              }}
+            >
               <Arrow
                 points={[a.x * w, a.y * h, a.x2 * w, a.y2 * h]}
                 stroke={a.color}
@@ -325,7 +349,7 @@ export function Annotations({
         <Transformer
           ref={trRef}
           name={NO_EXPORT}
-          rotateEnabled
+          rotateEnabled={!!sel && canRotate(sel.kind)}
           keepRatio={false}
           ignoreStroke
           anchorSize={ANCHOR_SCREEN_PX / Math.max(fit, 0.05)}

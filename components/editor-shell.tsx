@@ -126,6 +126,11 @@ export function EditorShell() {
       } catch {
         /* private mode, or no IndexedDB */
       }
+      // If the backdrop could not be restored, "image" mode would render a
+      // blank canvas with no way to tell why. Fall back to the gradient.
+      if (next.bg.mode === 'image' && !next.bg.imageSrc) {
+        next = { ...next, bg: { ...next.bg, mode: 'gradient' } }
+      }
       // one dispatch, so restoring never lands on the undo stack
       if (live) {
         act({ type: 'load', state: next })
@@ -215,7 +220,9 @@ export function EditorShell() {
         doDownload()
       }
       if (e.key === 'Escape' && selected) setSelected(null)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selected) {
+      // Delete only — Backspace is too easy to hit by accident for a
+      // destructive action, and Escape already covers "get me out of this"
+      if (e.key === 'Delete' && selected) {
         e.preventDefault()
         act({ type: 'annoRemove', id: selected })
         setSelected(null)
@@ -416,7 +423,12 @@ export function EditorShell() {
               e.preventDefault()
               setDragging(true)
             }}
-            onDragLeave={() => setDragging(false)}
+            // dragleave also fires when the pointer crosses into a child, and
+            // the stage covers this whole box — so only clear when the pointer
+            // has genuinely left the container
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false)
+            }}
             onDrop={(e) => {
               e.preventDefault()
               setDragging(false)

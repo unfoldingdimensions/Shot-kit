@@ -55,6 +55,17 @@ export const ANNO_KINDS: { id: AnnoKind; label: string }[] = [
 export const BOXY: AnnoKind[] = ['box', 'ellipse', 'spotlight', 'redact']
 
 /**
+ * Kinds that may be rotated.
+ *
+ * A spotlight is a full-canvas dim with a hole punched in it, and both live in
+ * the same group — rotating swung the dim rectangle off the canvas and left the
+ * corners undimmed. Redaction inherits the window's rotation instead, so an
+ * extra one of its own would break its mapping onto source pixels.
+ */
+export const ROTATABLE: AnnoKind[] = ['box', 'ellipse']
+export const canRotate = (k: AnnoKind) => ROTATABLE.includes(k)
+
+/**
  * Kinds that live inside the window frame rather than on the canvas. They are
  * drawn as children of the frame group, so they inherit its rotation and skew,
  * and their coordinates map straight onto source-image pixels — which is what
@@ -114,6 +125,24 @@ export function createAnno(kind: AnnoKind, id: string, annos: Anno[] = []): Anno
     default:
       return base
   }
+}
+
+/**
+ * Shift an arrow by (dx, dy), keeping BOTH endpoints on canvas.
+ *
+ * Clamping the endpoints independently would let one end stop at the edge while
+ * the other kept going, silently reshaping the arrow mid-drag. Clamping the
+ * delta instead moves it rigidly and just stops at the boundary.
+ */
+export function moveArrow(a: Anno, dx: number, dy: number): Anno {
+  const clampDelta = (d: number, p1: number, p2: number) => {
+    const lo = -Math.min(p1, p2)
+    const hi = 1 - Math.max(p1, p2)
+    return Math.min(Math.max(d, lo), hi)
+  }
+  const cx = clampDelta(dx, a.x, a.x2)
+  const cy = clampDelta(dy, a.y, a.y2)
+  return { ...a, x: a.x + cx, y: a.y + cy, x2: a.x2 + cx, y2: a.y2 + cy }
 }
 
 /** Keep a dragged annotation from vanishing off the canvas. */

@@ -64,6 +64,22 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
     ensureFontsLoaded().then(() => setFontsReady(true))
   }, [])
 
+  // Ctrl/Cmd + wheel must be a NATIVE non-passive listener. React attaches
+  // wheel handlers passively at the root, so preventDefault() from onWheel is
+  // silently ignored — the browser then zoomed the whole page at the same time
+  // as the canvas.
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const onWheel = (ev: WheelEvent) => {
+      if (!ev.ctrlKey && !ev.metaKey) return
+      ev.preventDefault()
+      setZoom((z) => Math.min(Math.max(z * (ev.deltaY < 0 ? 1.12 : 1 / 1.12), 0.2), 6))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   // pan continues outside the canvas, so these live on the window
   useEffect(() => {
     const move = (ev: MouseEvent) => {
@@ -74,6 +90,14 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
       el.scrollLeft = p.left - (ev.clientX - p.x)
       el.scrollTop = p.top - (ev.clientY - p.y)
     }
+    const touchMove = (ev: TouchEvent) => {
+      const p = pan.current
+      const el = wrapRef.current
+      const t = ev.touches[0]
+      if (!p || !el || !t) return
+      el.scrollLeft = p.left - (t.clientX - p.x)
+      el.scrollTop = p.top - (t.clientY - p.y)
+    }
     const end = () => {
       if (!pan.current) return
       pan.current = null
@@ -81,9 +105,15 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
     }
     window.addEventListener('mousemove', move)
     window.addEventListener('mouseup', end)
+    window.addEventListener('touchmove', touchMove, { passive: true })
+    window.addEventListener('touchend', end)
+    window.addEventListener('touchcancel', end)
     return () => {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', end)
+      window.removeEventListener('touchmove', touchMove)
+      window.removeEventListener('touchend', end)
+      window.removeEventListener('touchcancel', end)
     }
   }, [])
 
@@ -236,16 +266,7 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
 
   return (
     <div className="relative h-full w-full">
-      <div
-        ref={wrapRef}
-        className="scroll-thin flex h-full w-full overflow-auto"
-        onWheel={(e) => {
-          // pinch-zoom on a trackpad arrives as ctrlKey+wheel
-          if (!e.ctrlKey && !e.metaKey) return
-          e.preventDefault()
-          zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12)
-        }}
-      >
+      <div ref={wrapRef} className="scroll-thin flex h-full w-full overflow-auto">
         {avail.w > 0 && (
         <div
           // m-auto centres in both axes AND stays reachable when the stage is
@@ -277,7 +298,10 @@ export const CanvasStage = forwardRef<StageApi, StageProps>(function CanvasStage
               startPan(e.evt.clientX, e.evt.clientY)
             }}
             onTouchStart={(e) => {
-              if (e.target === e.target.getStage()) onSelect(null)
+              if (e.target !== e.target.getStage()) return
+              onSelect(null)
+              const t = e.evt.touches[0]
+              if (e.evt.touches.length === 1 && t) startPan(t.clientX, t.clientY)
             }}
             onMouseEnter={(e) => {
               if (canPan && e.target === e.target.getStage()) setCursor(e, 'grab')

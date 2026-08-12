@@ -59,7 +59,12 @@ export function ExportPanel({
             value={format}
             options={[
               { id: 'png', label: 'PNG' },
-              { id: 'jpg', label: 'JPG', title: transparent ? 'Needs an opaque background' : undefined },
+              {
+                id: 'jpg',
+                label: 'JPG',
+                disabled: transparent,
+                title: transparent ? 'JPG has no alpha channel — needs an opaque background' : undefined,
+              },
             ]}
             onChange={(f) => !transparent && dispatch({ type: 'out', patch: { format: f } })}
           />

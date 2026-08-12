@@ -13,7 +13,9 @@
   --color-card: #ffffff;
   --color-line: #e3e3e0;
   --color-line-dark: #2a2a2f;
-  --color-muted: #86868c;
+  /* #86868c was ~3:1 on white — under WCAG AA for the 11px uppercase labels
+     this is mostly used for. Darkened to clear 4.5:1 while staying quiet. */
+  --color-muted: #6a6a72;
   --color-muted-dark: #8a8a92;
   --color-lime: #cdeb4e;
   --color-lav: #b3a4f5;

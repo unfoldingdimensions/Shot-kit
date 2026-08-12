@@ -18,10 +18,13 @@ import {
   ANNO_KINDS,
   BOXY,
   FRAME_SPACE,
+  ROTATABLE,
   anchorFor,
+  canRotate,
   clampAnno,
   createAnno,
   inFrameSpace,
+  moveArrow,
   nextBadgeLabel,
   POINTER_PATH,
 } from './annotations'
@@ -470,6 +473,72 @@ assert.equal(clampDim(1234.6), 1235)
   assert.ok(tiny.w >= 0.02 && tiny.h >= 0.02)
   const off = clampAnno({ ...createAnno('redact', 'r'), x: 4, y: -3, w: 0.3, h: 0.1 })
   assert.ok(off.x <= 1 - 0.3 / 2 + 1e-9 && off.y >= -0.1 / 2 - 1e-9)
+}
+
+// --- moving an arrow -------------------------------------------------------
+{
+  // The arrow's group had no `draggable`, so the body could not be moved at all
+  // — only the two endpoints. Moving it must shift both ends rigidly.
+  const a = { ...createAnno('arrow', 'a'), x: 0.3, y: 0.3, x2: 0.5, y2: 0.4 }
+  const m = moveArrow(a, 0.1, 0.2)
+  near(m.x, 0.4)
+  near(m.y, 0.5)
+  near(m.x2, 0.6)
+  near(m.y2, 0.6)
+  near(m.x2 - m.x, a.x2 - a.x, 1e-9)
+  near(m.y2 - m.y, a.y2 - a.y, 1e-9)
+
+  // pushed past an edge it stops rigidly, and must NOT squash — clamping each
+  // endpoint separately would shorten the arrow as one end hit the wall
+  const far = moveArrow(a, 5, 5)
+  near(far.x2, 1)
+  near(far.y2, 1)
+  near(far.x2 - far.x, a.x2 - a.x, 1e-9)
+  near(far.y2 - far.y, a.y2 - a.y, 1e-9)
+
+  const back = moveArrow(a, -5, -5)
+  near(back.x, 0)
+  near(back.y, 0)
+  near(back.x2 - back.x, a.x2 - a.x, 1e-9)
+
+  // a zero drag changes nothing
+  const still = moveArrow(a, 0, 0)
+  near(still.x, a.x)
+  near(still.y2, a.y2)
+}
+
+// --- what may rotate -------------------------------------------------------
+{
+  // A spotlight is a full-canvas dim plus a hole in the same group; rotating it
+  // swung the dim off the canvas and left the corners undimmed. Redaction takes
+  // the window's rotation instead.
+  assert.ok(canRotate('box') && canRotate('ellipse'))
+  assert.ok(!canRotate('spotlight'), 'spotlight rotation broke its dim mask')
+  assert.ok(!canRotate('redact'), 'redaction inherits the frame rotation')
+  assert.ok(!canRotate('arrow') && !canRotate('pointer') && !canRotate('badge'))
+  // anything rotatable must also be resizable, or the Transformer has no anchors
+  for (const k of ROTATABLE) assert.ok(BOXY.includes(k), `${k} rotatable but not boxy`)
+}
+
+// --- no-op actions must not touch history ----------------------------------
+{
+  let h: History = initialHistory
+  h = reducer(h, { type: 'preset', id: 'ig-story' })
+  const depth = h.past.length
+
+  // re-picking the preset you are already on
+  assert.equal(reducer(h, { type: 'preset', id: 'ig-story' }).past.length, depth)
+  // re-entering the same custom size
+  let c = reducer(h, { type: 'size', w: 1234, h: 777 })
+  const cDepth = c.past.length
+  assert.equal(reducer(c, { type: 'size', w: 1234, h: 777 }).past.length, cDepth)
+  // but a real change still records
+  assert.equal(reducer(c, { type: 'size', w: 1235, h: 777 }).past.length, cDepth + 1)
+  // and switching from a preset to the same numbers as custom does record,
+  // because presetId changes
+  const asCustom = reducer(h, { type: 'size', w: 1080, h: 1920 })
+  assert.equal(asCustom.present.presetId, 'custom')
+  assert.equal(asCustom.past.length, depth + 1)
 }
 
 // --- background blur -------------------------------------------------------

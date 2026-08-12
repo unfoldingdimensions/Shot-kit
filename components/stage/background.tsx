@@ -18,6 +18,7 @@ export function Background({ bg, w, h }: { bg: State['bg']; w: number; h: number
   const stops = useMemo(() => konvaStops(bg.stops), [bg.stops])
 
   const box = { x: 0, y: 0, w, h }
+  const opaque = bg.mode !== 'transparent'
 
   return (
     <Group listening={false}>
@@ -47,9 +48,12 @@ export function Background({ bg, w, h }: { bg: State['bg']; w: number; h: number
       )}
 
       {/* transparent mode draws nothing — the checkerboard lives in CSS behind
-          the stage so it can never end up in the exported PNG */}
+          the stage so it can never end up in the exported PNG. The texture
+          overlays below are skipped for the same reason: the panel hides their
+          sliders in this mode but keeps the values, so without this gate a
+          leftover grain or vignette would bake into a supposedly clear PNG. */}
 
-      {grain && (
+      {opaque && grain && (
         <Rect
           width={w}
           height={h}
@@ -62,7 +66,7 @@ export function Background({ bg, w, h }: { bg: State['bg']; w: number; h: number
         />
       )}
 
-      {bg.vignette > 0 && (
+      {opaque && bg.vignette > 0 && (
         <Rect
           width={w}
           height={h}

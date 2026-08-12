@@ -101,7 +101,18 @@ export function TextPanel({ state, dispatch }: { state: State; dispatch: (a: Act
       <Card>
         <SectionTitle>Type</SectionTitle>
         <Row label="Font">
-          <Select aria-label="Font" value={slot.font} onChange={(f) => set({ font: f })}>
+          <Select
+            aria-label="Font"
+            value={slot.font}
+            onChange={(f) => {
+              // Instrument Serif only ships 400. Leaving a stale 800 in state
+              // made the slider clamp while the canvas still faux-bolded it.
+              const next = FONTS.find((x) => x.id === f) ?? FONTS[0]
+              const lo = next.weights[0]
+              const hi = next.weights[next.weights.length - 1]
+              set({ font: f, weight: Math.min(Math.max(slot.weight, lo), hi) })
+            }}
+          >
             {FONTS.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.label}

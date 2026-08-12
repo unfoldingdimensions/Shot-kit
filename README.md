@@ -55,15 +55,15 @@ shadow presets (none / soft / deep / hard) with manual blur, offset and opacity.
 **Annotations.** Six kinds, all draggable on the canvas:
 
 - **Pointer** — a cursor glyph for "click here"
-- **Arrow** — drag either end point to re-aim it
+- **Arrow** — drag the body to move it, or either end point to re-aim it
 - **Step** — auto-numbered badges that fill the first free number, so deleting #2 of 3 never
   produces a duplicate
 - **Box** and **Ellipse** — outline or filled highlight
 - **Spotlight** — dims the whole canvas except one region
 - **Redact** — pixelate, blur or solid-fill a region to hide emails, API keys and customer names
 
-Box, ellipse, spotlight and redact get resize handles. Select with a click, `Escape` to
-deselect, `Delete` to remove. Selection outlines and handles are hidden at export time, so they can
+Box, ellipse, spotlight and redact get resize handles; box and ellipse also rotate. Select with a
+click, `Escape` to deselect, `Delete` to remove. Selection outlines and handles are hidden at export time, so they can
 never end up in the bitmap. Annotation positions are stored as fractions of the canvas, so they
 stay put when you switch output size.
 
@@ -165,20 +165,18 @@ lib/
 Issues and PRs welcome. Before opening a PR:
 
 ```bash
-npm run check && npx tsc --noEmit && npm run build
+npm run verify
 ```
 
-Keep new dependencies to a minimum.
+That runs the self-check, `tsc --noEmit`, and a production build — and is safe to run with the dev
+server up. It builds into its own directory, because `next build` and `next dev` both write to
+`.next`, and building over a running dev server leaves the page serving unstyled HTML with a 404 on
+`_next/static/css/app/layout.css`. It also restores `tsconfig.json`, which Next rewrites to point at
+whichever `distDir` it built into.
 
-**Building while the dev server runs** replaces the chunks it is serving — the page then loads as
-unstyled HTML with a 404 on `_next/static/css/app/layout.css`. Either stop the dev server first, or
-build somewhere else:
+If you do clobber a dev server, `rm -rf .next && npm run dev` puts it back.
 
-```bash
-NEXT_DIST_DIR=.next-verify npx next build
-```
-
-If you hit it, `rm -rf .next && npm run dev` puts things back.
+There is no ESLint. Types plus the self-check are the gate; keep new dependencies to a minimum.
 
 ## License
 
