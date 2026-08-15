@@ -1,8 +1,8 @@
 'use client'
 import { ImageUp, Trash2 } from 'lucide-react'
 import { PRESETS, fitToImage, presetGroups } from '@/lib/presets'
-import type { Action, State } from '@/lib/state'
-import { Card, ResetButton, Row, SectionTitle, Select, TextField } from '../ui'
+import { parseDim, type Action, type State } from '@/lib/state'
+import { Card, NumberField, ResetButton, Row, SectionTitle, Select } from '../ui'
 
 export function ImagePanel({
   state,
@@ -118,20 +118,23 @@ export function ImagePanel({
 
         <div className="grid grid-cols-2 gap-2">
           <Row label="Width">
-            <TextField
+            <NumberField
               aria-label="Canvas width"
-              value={String(width)}
-              onChange={(v) => dispatch({ type: 'size', w: Number(v) || width, h: height })}
+              value={width}
+              onCommit={(raw) => dispatch({ type: 'size', w: parseDim(raw, width), h: height })}
             />
           </Row>
           <Row label="Height">
-            <TextField
+            <NumberField
               aria-label="Canvas height"
-              value={String(height)}
-              onChange={(v) => dispatch({ type: 'size', w: width, h: Number(v) || height })}
+              value={height}
+              onCommit={(raw) => dispatch({ type: 'size', w: width, h: parseDim(raw, height) })}
             />
           </Row>
         </div>
+        <p className="text-[11px] text-muted">
+          Anything from 64 to 8000 px. Press Enter or click away to apply.
+        </p>
       </Card>
     </>
   )

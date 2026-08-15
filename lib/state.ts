@@ -294,3 +294,17 @@ function apply(s: State, a: Action): State {
 export function clampDim(n: number) {
   return Math.max(64, Math.min(8000, Math.round(n || 0)))
 }
+
+/**
+ * Read a dimension the user typed, falling back when it isn't a usable number.
+ *
+ * Only ever call this when editing FINISHES. Clamping on every keystroke means
+ * typing "1000" clamps the leading "1" to 64 and the rest of the digits land on
+ * top of that, so larger sizes are unreachable.
+ */
+export function parseDim(text: string, fallback: number): number {
+  const t = text.trim()
+  if (!t) return fallback
+  const n = Number(t)
+  return Number.isFinite(n) ? clampDim(n) : fallback
+}

@@ -1,6 +1,6 @@
 'use client'
 import { RotateCcw } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 
 /** White rounded card — the panel unit of the whole sidebar. */
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -122,6 +122,55 @@ export function TextField({
       placeholder={placeholder}
       aria-label={ariaLabel}
       onChange={(e) => onChange(e.target.value)}
+    />
+  )
+}
+
+/**
+ * Numeric input that only commits when you finish typing.
+ *
+ * A controlled field that clamps on every keystroke is unusable: typing "1000"
+ * clamps the "1" to the minimum, re-renders, and the remaining digits append to
+ * that instead. So the text is held locally while focused and only handed back
+ * on blur or Enter; Escape abandons the edit.
+ */
+export function NumberField({
+  value,
+  onCommit,
+  'aria-label': ariaLabel,
+}: {
+  value: number
+  onCommit: (raw: string) => void
+  'aria-label'?: string
+}) {
+  const [text, setText] = useState(String(value))
+  const [editing, setEditing] = useState(false)
+
+  // follow the outside world whenever the user isn't mid-edit (presets, undo)
+  useEffect(() => {
+    if (!editing) setText(String(value))
+  }, [value, editing])
+
+  return (
+    <input
+      inputMode="numeric"
+      value={text}
+      aria-label={ariaLabel}
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setText(e.target.value.replace(/[^\d]/g, ''))}
+      onBlur={() => {
+        setEditing(false)
+        onCommit(text)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setText(String(value))
+          setEditing(false)
+          e.currentTarget.blur()
+        }
+      }}
+      className="w-full rounded-ctl border border-line bg-paper px-3 py-2 text-[13px] tabular-nums text-ink focus:border-lav focus:bg-white"
     />
   )
 }

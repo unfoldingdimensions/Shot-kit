@@ -11,7 +11,7 @@ import { fitToViewport, fitFrame, layout, gradientPoints, coverRect } from './ge
 import { fitToImage, findPreset, presetGroups, PRESETS } from './presets'
 import { dominantColors, gradientFromColors, luminance, mix, toHex, fromHex } from './colors'
 import { konvaStops, GRADIENTS } from './gradients'
-import { reducer, initialState, initialHistory, clampDim, type History } from './state'
+import { reducer, initialState, initialHistory, clampDim, parseDim, type History } from './state'
 import { CHROME_BAR_RATIO } from './chrome'
 import {
   ANCHOR_SCREEN_PX,
@@ -238,6 +238,22 @@ assert.ok(luminance('#ffffff') > 0.99 && luminance('#000000') < 0.01)
 }
 
 // --- state -----------------------------------------------------------------
+{
+  // Typing a size must survive its intermediate states. Clamping every
+  // keystroke turned "1000" into 64 on the first digit, so any size above the
+  // minimum was unreachable — parseDim is only ever applied on commit.
+  assert.equal(parseDim('1000', 900), 1000, 'the value the user actually typed')
+  assert.equal(parseDim('1600', 900), 1600)
+  // an empty or half-deleted field keeps the previous value rather than
+  // snapping to the minimum
+  assert.equal(parseDim('', 900), 900)
+  assert.equal(parseDim('   ', 900), 900)
+  assert.equal(parseDim('abc', 900), 900)
+  // out of range still clamps, but only once editing is done
+  assert.equal(parseDim('1', 900), 64)
+  assert.equal(parseDim('99999', 900), 8000)
+  assert.equal(parseDim('1000.6', 900), 1001, 'rounded, not truncated')
+}
 assert.equal(clampDim(0), 64)
 assert.equal(clampDim(99999), 8000)
 assert.equal(clampDim(1234.6), 1235)
