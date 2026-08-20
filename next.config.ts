@@ -13,6 +13,10 @@ const config: NextConfig = {
   // server (the scene loads through a client-side dynamic import), but the
   // bundler still resolves the module, and `canvas` is an uninstalled native
   // package. Point it at a stub instead.
+  output: 'export',
+  images: {
+    unoptimized: true,
+  },
   turbopack: {
     resolveAlias: {
       canvas: './lib/empty-module.js',

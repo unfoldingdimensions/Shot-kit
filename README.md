@@ -103,6 +103,14 @@ npm run check
 Runs the logic self-check — export-scale clamping, layout geometry, colour extraction, the state
 reducer. No test framework; it's a plain Node script full of asserts.
 
+### Desktop & Standalone Usage
+
+- **Windows Batch Launcher**: Double-click `shotkit.bat` to launch Shotkit in a standalone, dedicated window (Edge App Mode).
+- **Run in Desktop App Window**: `npm run app`
+- **Run Electron in Dev**: `npm run electron:dev`
+- **Build Standalone `.exe`**: `npm run electron:build` (generates portable `.exe` and NSIS installer in `dist-electron/`).
+
+
 ## Tech stack
 
 Next.js 15 (App Router, entirely client-side) · React 19 · Tailwind CSS v4 · Konva via react-konva ·
